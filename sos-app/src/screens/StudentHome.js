@@ -1016,6 +1016,7 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
   };
 
   const canSend = !!type && (loc.trim().length > 0 || !!coords);
+  const displayedTypes = initialType ? TYPES.filter((t) => t.key === initialType) : TYPES;
 
   const gpsBadge = {
     loading: { text: 'Acquiring GPS location...', color: C.amber, icon: 'navigate-circle-outline' },
@@ -1051,9 +1052,9 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
           keyboardShouldPersistTaps="handled"
         >
           {/* Step 1: Emergency Type */}
-          <Text style={s.inputStepTitle}>1. SELECT EMERGENCY CLASSIFICATION</Text>
-          <View style={s.modalTypeGrid}>
-            {TYPES.map((t) => {
+          <Text style={[s.inputStepTitle, initialType && { textAlign: 'center' }]}>1. SELECT EMERGENCY CLASSIFICATION</Text>
+          <View style={[s.modalTypeGrid, initialType && { justifyContent: 'center', alignItems: 'center' }]}>
+            {displayedTypes.map((t) => {
               const selected = type === t.key;
               return (
                 <TouchableOpacity
@@ -1063,15 +1064,24 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
                   style={[
                     s.modalTypeCard,
                     selected && { borderColor: t.color, backgroundColor: t.bg, ...SHADOWS.sm },
+                    initialType && {
+                      width: '85%',
+                      justifyContent: 'center',
+                      alignSelf: 'center',
+                      paddingVertical: 14,
+                      paddingHorizontal: 16,
+                      borderRadius: 14,
+                    },
                   ]}
                 >
-                  <View style={[s.modalTypeIcon, { backgroundColor: selected ? '#fff' : t.bg }]}>
+                  <View style={[s.modalTypeIcon, { backgroundColor: selected ? '#fff' : t.bg }, initialType && { marginRight: 12 }]}>
                     <TypeIcon typeKey={t.key} size={22} color={t.color} />
                   </View>
                   <Text
                     style={[
                       s.modalTypeLabel,
                       selected && { color: t.color, fontWeight: '800' },
+                      initialType && { fontSize: 16 },
                     ]}
                   >
                     {t.label}
