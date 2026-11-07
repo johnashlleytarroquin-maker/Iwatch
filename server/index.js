@@ -4,6 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Server } = require('socket.io');
+const { sendOtpEmail } = require('./mailer');
 const {
   supabase,
   JWT_SECRET,
@@ -76,6 +77,20 @@ async function auth(req, res, next) {
 const role = (...roles) => (req, res, next) =>
   roles.includes(req.user.role) ? next() : res.status(403).json({ error: 'Not allowed for your role' });
 
+// Helper: check if a user has verified their Gmail address
+async function isEmailVerified(u) {
+  if (!u) return false;
+  if (u.status === 'approved') return true;
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('id')
+    .eq('target_type', 'user')
+    .eq('action', 'email_verified')
+    .eq('target_id', u.id)
+    .limit(1);
+  return Boolean(!error && data && data.length > 0);
+}
+
 // ---------- auth routes ----------
 app.get('/api/health', (_req, res) => res.json({ ok: true, database: 'supabase' }));
 
@@ -85,28 +100,170 @@ app.post('/api/auth/register', wrap(async (req, res) => {
   if (!['student', 'responder'].includes(wanted)) return res.status(400).json({ error: 'Role must be student or responder' });
   if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
 
+  // Require valid Gmail address
   const em = String(email).trim().toLowerCase();
-  const existing = await findUserByEmail(em);
-  if (existing) return res.status(409).json({ error: 'That email is already registered' });
+  if (!em.endsWith('@gmail.com') || em.length <= 10) {
+    return res.status(400).json({ error: 'A valid Gmail address (@gmail.com) is required for registration.' });
+  }
 
-  // Responders ALWAYS need admin approval. Students are auto-approved unless STUDENT_APPROVAL=true.
-  const status = wanted === 'student' && !STUDENT_NEEDS_APPROVAL ? 'approved' : 'pending';
+  const existing = await findUserByEmail(em);
+  if (existing) {
+    const verified = await isEmailVerified(existing);
+    if (!verified) {
+      // Allow unverified users to get a fresh OTP and complete verification
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      await supabase.from('audit_log').insert({
+        actor_id: existing.id,
+        action: 'otp_request',
+        target_type: 'otp',
+        target_id: existing.id,
+        details: JSON.stringify({ otp, expiresAt, email: em, role: existing.role }),
+      });
+      const mailRes = await sendOtpEmail(em, otp, existing.name);
+      return res.status(200).json({
+        status: 'pending',
+        requiresOtp: true,
+        email: em,
+        userId: existing.id,
+        message: 'This Gmail is registered but not yet verified. A fresh 6-digit code has been sent to your Gmail.',
+        devOtp: mailRes.simulated ? otp : undefined,
+      });
+    }
+    return res.status(409).json({ error: 'That Gmail address is already registered.' });
+  }
+
+  // Create user with status 'pending' (satisfies DB constraint until OTP verified)
   const newUser = await createUser({
     name: String(name).trim(),
     email: em,
     password_hash: bcrypt.hashSync(String(password), 10),
     role: wanted,
-    status,
+    status: 'pending',
     id_number: idNumber || null,
     phone: phone || null,
   });
 
-  await audit(newUser.id, 'register', 'user', newUser.id, `${wanted} registered (${status})`);
+  await audit(newUser.id, 'register', 'user', newUser.id, `${wanted} registered (pending verification)`);
 
-  if (status === 'pending') io.to('admins').emit('user:pending', { id: newUser.id, name: newUser.name, role: wanted });
+  // Generate 6-digit verification code (valid for 10 minutes)
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await supabase.from('audit_log').insert({
+    actor_id: newUser.id,
+    action: 'otp_request',
+    target_type: 'otp',
+    target_id: newUser.id,
+    details: JSON.stringify({ otp, expiresAt, email: em, role: wanted }),
+  });
+
+  const mailRes = await sendOtpEmail(em, otp, newUser.name);
+
   res.status(201).json({
-    status,
-    message: status === 'approved' ? 'Account created. You can sign in now.' : 'Registration sent. An admin must approve your account before you can sign in.',
+    status: 'pending',
+    requiresOtp: true,
+    email: em,
+    userId: newUser.id,
+    message: 'A 6-digit verification code has been sent to your Gmail. Please enter it to complete registration.',
+    devOtp: mailRes.simulated ? otp : undefined,
+  });
+}));
+
+// Verify 6-digit OTP code sent to user's Gmail
+app.post('/api/auth/verify-otp', wrap(async (req, res) => {
+  const { email, otp } = req.body || {};
+  if (!email || !otp) return res.status(400).json({ error: 'Email and OTP verification code are required.' });
+
+  const em = String(email).trim().toLowerCase();
+  const u = await findUserByEmail(em);
+  if (!u) return res.status(404).json({ error: 'No account found with this Gmail address.' });
+
+  if (await isEmailVerified(u)) {
+    return res.json({ message: 'Your Gmail is already verified. You can sign in now.' });
+  }
+
+  // Retrieve latest OTP record
+  const { data: logs, error: logErr } = await supabase
+    .from('audit_log')
+    .select('*')
+    .eq('target_type', 'otp')
+    .eq('target_id', u.id)
+    .order('id', { ascending: false })
+    .limit(1);
+
+  if (logErr || !logs || logs.length === 0) {
+    return res.status(400).json({ error: 'No verification code found. Please tap "Resend Code".' });
+  }
+
+  let record = {};
+  try {
+    record = JSON.parse(logs[0].details || '{}');
+  } catch {}
+
+  if (new Date() > new Date(record.expiresAt)) {
+    return res.status(400).json({ error: 'Verification code has expired. Please tap "Resend Code".' });
+  }
+
+  if (record.otp !== String(otp).trim()) {
+    return res.status(400).json({ error: 'Incorrect verification code. Please check your Gmail and try again.' });
+  }
+
+  // OTP verified! Record in audit_log
+  await audit(u.id, 'email_verified', 'user', u.id, `${u.email} verified via Gmail OTP`);
+
+  // Activate student or notify admin for responder
+  const isApproved = u.role === 'student' && !STUDENT_NEEDS_APPROVAL;
+  const newStatus = isApproved ? 'approved' : 'pending';
+  const updated = isApproved ? await updateUser(u.id, { status: newStatus }) : u;
+
+  if (!isApproved) {
+    io.to('admins').emit('user:pending', { id: u.id, name: u.name, role: u.role });
+    return res.json({
+      status: 'pending',
+      user: publicUser(updated),
+      message: 'Gmail verified! Your responder account is waiting for school administrator approval before you can sign in.',
+    });
+  }
+
+  // Auto-approved student: issue JWT token immediately
+  const token = jwt.sign({ id: u.id }, JWT_SECRET, { expiresIn: '30d' });
+  res.json({
+    status: 'approved',
+    token,
+    user: publicUser(updated),
+    message: 'Gmail verified successfully! Welcome to Iwatch.',
+  });
+}));
+
+// Resend 6-digit OTP code to Gmail
+app.post('/api/auth/resend-otp', wrap(async (req, res) => {
+  const { email } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'Email is required.' });
+
+  const em = String(email).trim().toLowerCase();
+  const u = await findUserByEmail(em);
+  if (!u) return res.status(404).json({ error: 'No account found with this Gmail address.' });
+
+  if (await isEmailVerified(u)) {
+    return res.status(400).json({ error: 'Your account is already verified. Please sign in.' });
+  }
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await supabase.from('audit_log').insert({
+    actor_id: u.id,
+    action: 'otp_request',
+    target_type: 'otp',
+    target_id: u.id,
+    details: JSON.stringify({ otp, expiresAt, email: u.email, role: u.role }),
+  });
+
+  const mailRes = await sendOtpEmail(u.email, otp, u.name);
+
+  res.json({
+    success: true,
+    message: 'A fresh 6-digit verification code has been sent to your Gmail.',
+    devOtp: mailRes.simulated ? otp : undefined,
   });
 }));
 
@@ -115,6 +272,30 @@ app.post('/api/auth/login', wrap(async (req, res) => {
   const u = await findUserByEmail(email);
   if (!u || !bcrypt.compareSync(String(password || ''), u.password_hash))
     return res.status(401).json({ error: 'Wrong email or password' });
+
+  const verified = await isEmailVerified(u);
+  if (!verified) {
+    // Send a fresh OTP code so they can verify easily
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await supabase.from('audit_log').insert({
+      actor_id: u.id,
+      action: 'otp_request',
+      target_type: 'otp',
+      target_id: u.id,
+      details: JSON.stringify({ otp, expiresAt, email: u.email, role: u.role }),
+    });
+    const mailRes = await sendOtpEmail(u.email, otp, u.name);
+
+    return res.status(403).json({
+      error: 'Your Gmail address is not verified yet. We sent a verification code to your Gmail.',
+      unverified: true,
+      email: u.email,
+      userId: u.id,
+      devOtp: mailRes.simulated ? otp : undefined,
+    });
+  }
+
   if (u.status === 'pending') return res.status(403).json({ error: 'Your account is waiting for admin approval' });
   if (u.status === 'rejected') return res.status(403).json({ error: 'Your registration was rejected. Contact the school admin.' });
   if (u.status === 'disabled') return res.status(403).json({ error: 'Your account has been disabled. Contact the school admin.' });
