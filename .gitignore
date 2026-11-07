@@ -1,0 +1,24 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Server secrets & local db
+server/.secret
+server/.env
+server/sos.db*
+
+# Android build outputs
+sos-app/android/.gradle/
+sos-app/android/build/
+sos-app/android/app/build/
+*.apk
+*.aab
+
+# Expo & IDE
+.expo/
+.idea/
+.vscode/
+*.swp
+*.DS_Store
