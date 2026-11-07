@@ -47,11 +47,11 @@ export default function AuthScreen() {
   const submit = async () => {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Check Gmail domain requirement
-    if (!cleanEmail.endsWith('@gmail.com') || cleanEmail.length <= 10) {
+    // Require Gmail address when creating a new account
+    if (mode === 'register' && (!cleanEmail.endsWith('@gmail.com') || cleanEmail.length <= 10)) {
       Alert.alert(
         'Valid Gmail Required',
-        'All users must use an active, valid Gmail address (@gmail.com) for account verification and security notifications.'
+        'All new accounts must use an active, valid Gmail address (@gmail.com) for account verification and security notifications.'
       );
       return;
     }
@@ -371,13 +371,13 @@ export default function AuthScreen() {
               )}
 
               <Field
-                label={mode === 'register' ? 'Gmail Address (Must be @gmail.com)' : 'Gmail Address'}
+                label={mode === 'register' ? 'Gmail Address (Must be @gmail.com)' : 'Email / Gmail Address'}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 autoCorrect={false}
-                placeholder="yourname@gmail.com"
+                placeholder={mode === 'register' ? 'yourname@gmail.com' : 'admin@school.local or yourname@gmail.com'}
               />
 
               <Field
