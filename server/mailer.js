@@ -5,9 +5,18 @@ function createTransporter() {
   const pass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS;
 
   if (user && pass) {
+    // Strip spaces if user copied "abcd efgh ijkl mnop"
+    const cleanPass = String(pass).replace(/\s+/g, '');
+    const cleanUser = String(user).trim();
+
     return nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true, // SSL
+      auth: {
+        user: cleanUser,
+        pass: cleanPass,
+      },
     });
   }
   return null;
@@ -18,6 +27,7 @@ function createTransporter() {
  */
 async function sendOtpEmail(toEmail, otpCode, userName = 'User') {
   const transporter = createTransporter();
+  const senderEmail = process.env.GMAIL_USER || process.env.SMTP_USER || 'iwatch.dispatch@gmail.com';
   const subject = `[Iwatch SOS] Your Email Verification Code: ${otpCode}`;
   const html = `
     <!DOCTYPE html>
@@ -84,12 +94,12 @@ async function sendOtpEmail(toEmail, otpCode, userName = 'User') {
 
   try {
     const info = await transporter.sendMail({
-      from: `"Iwatch Campus Security" <${process.env.GMAIL_USER || process.env.SMTP_USER}>`,
+      from: `"Iwatch Campus Security" <${senderEmail}>`,
       to: toEmail,
       subject,
       html,
     });
-    console.log('[mailer] Verification email sent to:', toEmail, 'Message ID:', info.messageId);
+    console.log('[mailer] Verification email successfully sent to:', toEmail, 'Message ID:', info.messageId);
     return { sent: true, simulated: false };
   } catch (err) {
     console.error('[mailer] Failed to send email via Gmail SMTP:', err.message);

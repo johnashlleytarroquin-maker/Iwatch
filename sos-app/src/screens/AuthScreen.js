@@ -75,9 +75,14 @@ export default function AuthScreen() {
         if (res.requiresOtp || res.status === 'unverified') {
           setVerifyingEmail(cleanEmail);
           setOtpMode(true);
-          setOtpCode('');
           setResendCooldown(60);
-          setNotice('Verification code sent to your Gmail. Please enter the 6 digits below.');
+          if (res.devOtp) {
+            setOtpCode(res.devOtp);
+            setNotice(`Verification code: ${res.devOtp} (auto-filled for quick testing)`);
+          } else {
+            setOtpCode('');
+            setNotice('Verification code sent to your Gmail. Please enter the 6 digits below.');
+          }
         } else {
           setNotice(res.message || 'Registration submitted! Please sign in.');
           setMode('login');
@@ -89,12 +94,21 @@ export default function AuthScreen() {
       if (e.data && e.data.unverified) {
         setVerifyingEmail(cleanEmail);
         setOtpMode(true);
-        setOtpCode('');
         setResendCooldown(60);
-        Alert.alert(
-          'Email Verification Required',
-          'Your Gmail address has not been verified yet. We have sent a 6-digit verification code to your Gmail.'
-        );
+        if (e.data.devOtp) {
+          setOtpCode(e.data.devOtp);
+          setNotice(`Verification code: ${e.data.devOtp} (auto-filled for quick testing)`);
+          Alert.alert(
+            'Email Verification Required',
+            `Your Gmail has not been verified yet.\n\nVerification Code: ${e.data.devOtp}`
+          );
+        } else {
+          setOtpCode('');
+          Alert.alert(
+            'Email Verification Required',
+            'Your Gmail address has not been verified yet. We have sent a 6-digit verification code to your Gmail.'
+          );
+        }
       } else {
         Alert.alert(mode === 'login' ? 'Authentication Failed' : 'Registration Failed', e.message);
       }
@@ -147,7 +161,13 @@ export default function AuthScreen() {
     try {
       const res = await api.post('/api/auth/resend-otp', { email: verifyingEmail });
       setResendCooldown(60);
-      Alert.alert('Code Sent', res.message || 'A fresh 6-digit verification code was sent to your Gmail.');
+      if (res.devOtp) {
+        setOtpCode(res.devOtp);
+        setNotice(`New verification code: ${res.devOtp} (auto-filled)`);
+        Alert.alert('Code Ready', `Your verification code is: ${res.devOtp}`);
+      } else {
+        Alert.alert('Code Sent', res.message || 'A fresh 6-digit verification code was sent to your Gmail.');
+      }
     } catch (err) {
       Alert.alert('Error', err.message || 'Could not resend code. Please try again later.');
     } finally {
