@@ -4,7 +4,8 @@
   "description": "Backend for the School SOS responder app",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "reset-db": "node reset_database.js"
   },
   "engines": {
     "node": ">=18"
