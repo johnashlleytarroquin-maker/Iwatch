@@ -17,11 +17,12 @@ import { useAuth } from '../auth';
 import { useReports } from '../useReports';
 import { Avatar, Badge, Btn, Card, Field, Header, TabBar } from '../ui';
 import { ACTIVE, C, SHADOWS, fmtTime } from '../theme';
-import { api } from '../api';
+import { api, getToken } from '../api';
 import AlertModal from '../components/AlertModal';
 import ReportDetail from '../components/ReportDetail';
 import ReportList, { sortActive } from '../components/ReportList';
 import { registerResponderPushToken, stopEmergencyAlarmSound, stopResponderVibration } from '../services/notifications';
+import { ResponderService } from '../services/responderService';
 
 export default function ResponderHome() {
   const { user, logout, socket, updateUser } = useAuth();
@@ -31,10 +32,14 @@ export default function ResponderHome() {
   const [presence, setPresence] = useState({ activeResponders: 1, activeUsers: 1 });
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Register push notification token on device startup so responders get alerts even if app is closed
+  // Register push token and start 24/7 background responder monitoring
   useEffect(() => {
     if (user?.role === 'responder') {
       registerResponderPushToken(user).catch(() => {});
+      const token = getToken();
+      if (token) {
+        ResponderService.start(token);
+      }
     }
   }, [user]);
 
@@ -52,12 +57,14 @@ export default function ResponderHome() {
     return () => {
       stopEmergencyAlarmSound();
       stopResponderVibration();
+      ResponderService.silence();
     };
   }, []);
 
   const handleLogout = async () => {
     stopEmergencyAlarmSound();
     stopResponderVibration();
+    ResponderService.stop();
     try {
       await api.post('/api/me/remove-push-token');
     } catch {}

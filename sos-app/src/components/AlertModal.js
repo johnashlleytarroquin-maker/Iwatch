@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Btn, TypeIcon } from '../ui';
 import { C, SHADOWS, typeInfo } from '../theme';
 import { stopEmergencyAlarmSound, stopResponderVibration } from '../services/notifications';
+import { ResponderService } from '../services/responderService';
 
 // Full-screen takeover shown to responders and admins when a new SOS arrives.
 export default function AlertModal({ report, onView, onDismiss }) {
@@ -13,12 +14,14 @@ export default function AlertModal({ report, onView, onDismiss }) {
   const handleAccept = () => {
     stopEmergencyAlarmSound();
     stopResponderVibration();
+    ResponderService.silence();
     onView();
   };
 
   const handleDismiss = () => {
     stopEmergencyAlarmSound();
     stopResponderVibration();
+    ResponderService.silence();
     onDismiss();
   };
 
