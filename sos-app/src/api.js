@@ -14,9 +14,10 @@ export const setUnauthorizedHandler = (fn) => {
 async function request(method, path, body) {
   let res;
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  // 35-second timeout to allow Render free tier to wake up from cold start
   const timeoutId = setTimeout(() => {
     if (controller) controller.abort();
-  }, 9000); // 9 second timeout
+  }, 35000);
 
   try {
     res = await fetch(API_URL + path, {
@@ -30,9 +31,9 @@ async function request(method, path, body) {
     });
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error(`Connection timed out (${API_URL}). Please ensure the server ('npm start') is running on your computer.`);
+      throw new Error(`The cloud server is taking longer than usual to respond (it may be waking up from sleep). Please tap again.`);
     }
-    throw new Error(`Cannot reach server at ${API_URL}. Check your Wi-Fi connection and make sure 'npm start' is running.`);
+    throw new Error(`Cannot reach the cloud server. Please check your cellular data or Wi-Fi connection and try again.`);
   } finally {
     clearTimeout(timeoutId);
   }
