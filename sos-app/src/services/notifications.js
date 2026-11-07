@@ -1,7 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform, Vibration } from 'react-native';
+import { Audio } from 'expo-av';
 import { api } from '../api';
+
+let currentSound = null;
 
 // Handle notification display while the app is in the foreground
 Notifications.setNotificationHandler({
@@ -14,7 +17,7 @@ Notifications.setNotificationHandler({
 
 /**
  * Configure high-priority emergency channel for Android.
- * Essential for heads-up alerts and vibration.
+ * Plays the loud emergency alarm siren and pulses vibration.
  */
 export async function setupNotificationChannels() {
   if (Platform.OS === 'android') {
@@ -23,15 +26,60 @@ export async function setupNotificationChannels() {
         name: 'Campus Emergency Dispatch Alerts',
         description: 'Urgent emergency dispatches and alarms for on-duty responders',
         importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 600, 200, 600, 200, 1000],
+        sound: 'emergency_alarm', // References res/raw/emergency_alarm.wav
+        vibrationPattern: [0, 600, 200, 600, 200, 1000, 300],
         lightColor: '#DC2626',
         enableVibrate: true,
         showBadge: true,
+        audioAttributes: {
+          usage: Notifications.AndroidAudioUsage.ALARM,
+          contentType: Notifications.AndroidAudioContentType.SONIFICATION,
+        },
       });
     } catch (e) {
       console.warn('[notifications] Channel configuration note:', e.message);
     }
   }
+}
+
+/**
+ * Play loud emergency siren alarm on responder devices using Expo Audio.
+ * Loops continuously until dismissed or accepted.
+ */
+export async function playEmergencyAlarmSound(user) {
+  if (!user || user.role !== 'responder') return;
+
+  try {
+    await stopEmergencyAlarmSound();
+
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: false,
+    });
+
+    const { sound } = await Audio.Sound.createAsync(
+      require('../../assets/emergency_alarm.wav'),
+      { shouldPlay: true, isLooping: true, volume: 1.0 }
+    );
+    currentSound = sound;
+    await sound.playAsync();
+  } catch (err) {
+    console.warn('[notifications] Audio alarm playback notice:', err.message);
+  }
+}
+
+/**
+ * Stop any active emergency alarm audio playback.
+ */
+export async function stopEmergencyAlarmSound() {
+  try {
+    if (currentSound) {
+      await currentSound.stopAsync();
+      await currentSound.unloadAsync();
+      currentSound = null;
+    }
+  } catch {}
 }
 
 /**
@@ -46,8 +94,6 @@ export async function registerResponderPushToken(user) {
 
     await setupNotificationChannels().catch(() => {});
 
-    // In Expo Go on Android (SDK 53+), Expo removed remote FCM push support.
-    // We check and gracefully avoid the warning/rejection while in Expo Go.
     const isExpoGo =
       Constants.appOwnership === 'expo' ||
       Constants.executionEnvironment === 'storeClient';
@@ -79,20 +125,19 @@ export async function registerResponderPushToken(user) {
     }
     return pushToken;
   } catch (err) {
-    // Fail silently in development
     return null;
   }
 }
 
 /**
  * Vibrate phone ONLY for responder users.
- * Uses a distinct emergency alarm vibration cadence.
+ * Uses a looping emergency cadence that repeats until dismissed.
  */
 export function triggerResponderVibration(user) {
   if (user && user.role === 'responder') {
     try {
-      // Urgent cadence: pause 0, buzz 600ms, pause 200ms, buzz 600ms, pause 200ms, buzz 1000ms
-      Vibration.vibrate([0, 600, 200, 600, 200, 1000, 200, 1000]);
+      // Loop cadence: pause 0, buzz 600ms, pause 200ms, buzz 600ms, pause 200ms, buzz 1000ms, pause 400ms
+      Vibration.vibrate([0, 600, 200, 600, 200, 1000, 400], true);
     } catch (e) {
       console.warn('[notifications] Vibration error:', e);
     }
@@ -100,8 +145,17 @@ export function triggerResponderVibration(user) {
 }
 
 /**
- * Present an immediate local notification (used when socket receives an emergency alert)
- * ONLY executed if user is an on-duty responder.
+ * Stop any active vibration on the responder device.
+ */
+export function stopResponderVibration() {
+  try {
+    Vibration.cancel();
+  } catch {}
+}
+
+/**
+ * Present an immediate local notification (used when socket receives an emergency alert).
+ * Plays the emergency sound and triggers vibration on responder devices.
  */
 export async function presentEmergencyNotification(report, user) {
   if (!user || user.role !== 'responder') return;
@@ -118,11 +172,12 @@ export async function presentEmergencyNotification(report, user) {
         body: `${studentName} requested immediate SOS assistance${loc}.${note}`,
         data: { reportId: report.id, type: report.type },
         channelId: 'emergency-alerts',
+        sound: 'emergency_alarm',
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        vibrate: [0, 600, 200, 600, 200, 1000, 400],
       },
       trigger: null, // instant
     }).catch(() => {});
-
-    triggerResponderVibration(user);
   } catch (e) {
     console.warn('[notifications] Failed to present emergency notification:', e);
   }

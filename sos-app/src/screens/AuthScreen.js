@@ -349,11 +349,11 @@ export default function AuthScreen() {
                     label="Full Name"
                     value={name}
                     onChangeText={setName}
-                    placeholder="e.g. George B Elipe"
+                    placeholder="e.g. Juan B Dela Cruz"
                   />
 
                   <Field
-                    label={role === 'student' ? 'Student ID Number' : 'Staff / Responder ID'}
+                    label={role === 'student' ? 'Student ID Number' : 'Responder ID'}
                     value={idNumber}
                     onChangeText={setIdNumber}
                     placeholder="e.g. 2024-10892"
@@ -361,23 +361,23 @@ export default function AuthScreen() {
                   />
 
                   <Field
-                    label="Contact Phone (for emergency callback)"
+                    label="Contact Phone (for emergency purposes)"
                     value={phone}
                     onChangeText={setPhone}
-                    placeholder="e.g. 0917-123-4567"
+                    placeholder="e.g. 09173698673"
                     keyboardType="phone-pad"
                   />
                 </>
               )}
 
               <Field
-                label={mode === 'register' ? 'Gmail Address (Must be @gmail.com)' : 'Email / Gmail Address'}
+                label={mode === 'register' ? 'Personal Gmail Account' : 'Email / Gmail Address'}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 autoCorrect={false}
-                placeholder={mode === 'register' ? 'yourname@gmail.com' : 'admin@school.local or yourname@gmail.com'}
+                placeholder={mode === 'register' ? 'yourname@gmail.com' : 'Juandelacruz@gmail.com'}
               />
 
               <Field

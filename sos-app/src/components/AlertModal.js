@@ -1,16 +1,29 @@
 import React from 'react';
 import { Modal, StyleSheet, Text, View } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { Btn, TypeIcon } from '../ui';
 import { C, SHADOWS, typeInfo } from '../theme';
+import { stopEmergencyAlarmSound, stopResponderVibration } from '../services/notifications';
 
 // Full-screen takeover shown to responders and admins when a new SOS arrives.
 export default function AlertModal({ report, onView, onDismiss }) {
   if (!report) return null;
   const t = typeInfo(report.type);
 
+  const handleAccept = () => {
+    stopEmergencyAlarmSound();
+    stopResponderVibration();
+    onView();
+  };
+
+  const handleDismiss = () => {
+    stopEmergencyAlarmSound();
+    stopResponderVibration();
+    onDismiss();
+  };
+
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onDismiss}>
+    <Modal visible transparent animationType="fade" onRequestClose={handleDismiss}>
       <View style={s.overlay}>
         <View style={s.container}>
           {/* Beacon Header */}
@@ -40,7 +53,12 @@ export default function AlertModal({ report, onView, onDismiss }) {
               </View>
             </View>
 
-            <View style={[s.detailRow, { marginTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 10 }]}>
+            <View
+              style={[
+                s.detailRow,
+                { marginTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.1)', paddingTop: 10 },
+              ]}
+            >
               <Ionicons name="person" size={18} color="#FCA5A5" style={{ marginRight: 10 }} />
               <View style={{ flex: 1 }}>
                 <Text style={s.detailLabel}>REPORTED BY</Text>
@@ -56,7 +74,7 @@ export default function AlertModal({ report, onView, onDismiss }) {
           <View style={s.actionBox}>
             <Btn
               title="ACCEPT & RESPOND NOW"
-              onPress={onView}
+              onPress={handleAccept}
               color="#fff"
               textStyle={{ color: C.redDark, fontWeight: '900' }}
               icon={<Ionicons name="flash" size={18} color={C.redDark} />}
@@ -64,7 +82,7 @@ export default function AlertModal({ report, onView, onDismiss }) {
             />
             <Btn
               title="Dismiss Notification"
-              onPress={onDismiss}
+              onPress={handleDismiss}
               color="#fff"
               outline
               textStyle={{ color: '#fff' }}
@@ -105,52 +123,51 @@ const s = StyleSheet.create({
     marginRight: 8,
   },
   beaconText: {
-    color: '#fff',
+    color: '#FEE2E2',
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '800',
     letterSpacing: 1.2,
   },
   iconRingOuter: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   iconRingInner: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: C.red,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: C.redDark,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: '#fff',
-    ...SHADOWS.glow(C.red),
+    ...SHADOWS.md,
   },
   emergencyTitle: {
-    color: '#fff',
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 1.2,
     textAlign: 'center',
-    letterSpacing: 0.5,
   },
   caseId: {
-    color: '#FCA5A5',
     fontSize: 13,
+    color: '#FCA5A5',
     fontWeight: '600',
     marginTop: 4,
+    marginBottom: 24,
   },
   detailsCard: {
     width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.22)',
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 24,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 18,
+    padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
+    marginBottom: 24,
   },
   detailRow: {
     flexDirection: 'row',
@@ -160,22 +177,20 @@ const s = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#FCA5A5',
-    letterSpacing: 0.6,
+    letterSpacing: 1,
+    marginBottom: 2,
   },
   detailValue: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-    marginTop: 2,
+    color: '#fff',
   },
   reporterName: {
-    color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
-    marginTop: 1,
+    color: '#fff',
   },
   actionBox: {
     width: '100%',
-    marginTop: 28,
   },
 });

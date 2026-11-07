@@ -21,7 +21,7 @@ import { api } from '../api';
 import AlertModal from '../components/AlertModal';
 import ReportDetail from '../components/ReportDetail';
 import ReportList, { sortActive } from '../components/ReportList';
-import { registerResponderPushToken } from '../services/notifications';
+import { registerResponderPushToken, stopEmergencyAlarmSound, stopResponderVibration } from '../services/notifications';
 
 export default function ResponderHome() {
   const { user, logout, socket, updateUser } = useAuth();
@@ -48,7 +48,16 @@ export default function ResponderHome() {
     return () => socket.off('presence:update', onPresence);
   }, [socket]);
 
+  useEffect(() => {
+    return () => {
+      stopEmergencyAlarmSound();
+      stopResponderVibration();
+    };
+  }, []);
+
   const handleLogout = async () => {
+    stopEmergencyAlarmSound();
+    stopResponderVibration();
     try {
       await api.post('/api/me/remove-push-token');
     } catch {}

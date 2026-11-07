@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
 import { useAuth } from './auth';
-import { presentEmergencyNotification, triggerResponderVibration } from './services/notifications';
+import {
+  presentEmergencyNotification,
+  playEmergencyAlarmSound,
+  stopEmergencyAlarmSound,
+  triggerResponderVibration,
+  stopResponderVibration,
+} from './services/notifications';
 
 // Shared live report list for responders and admins.
-// Loads everything once, then keeps it fresh through the realtime socket
-// (plus a slow poll as a safety net in case the socket drops).
+// Loads everything once, then keeps it fresh through the realtime socket.
 export function useReports() {
   const { socket, user } = useAuth();
   const [reports, setReports] = useState([]);
@@ -35,16 +40,17 @@ export function useReports() {
       setReports((prev) => [r, ...prev.filter((x) => x.id !== r.id)]);
       setAlertReport(r);
 
-      // Trigger high-urgency vibration and local heads-up notification ONLY on responder users
+      // Trigger high-urgency vibration, siren alarm sound, and local notification ONLY on responder users
       if (user?.role === 'responder') {
         triggerResponderVibration(user);
+        playEmergencyAlarmSound(user);
         presentEmergencyNotification(r, user);
       }
     };
     const onUpdate = (r) => setReports((prev) => prev.map((x) => (x.id === r.id ? r : x)));
     socket.on('report:new', onNew);
     socket.on('report:update', onUpdate);
-    socket.on('connect', load); // catch up on anything missed while disconnected
+    socket.on('connect', load);
     return () => {
       socket.off('report:new', onNew);
       socket.off('report:update', onUpdate);
@@ -57,5 +63,11 @@ export function useReports() {
     []
   );
 
-  return { reports, loading, reload: load, patch, alertReport, dismissAlert: () => setAlertReport(null) };
+  const dismissAlert = useCallback(() => {
+    stopEmergencyAlarmSound();
+    stopResponderVibration();
+    setAlertReport(null);
+  }, []);
+
+  return { reports, loading, reload: load, patch, alertReport, dismissAlert };
 }
