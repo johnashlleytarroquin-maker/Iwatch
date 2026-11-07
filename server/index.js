@@ -365,7 +365,7 @@ async function sendPushToResponders(report) {
       to: r.push_token,
       title: `🚨 EMERGENCY: ${typeUpper} ALERT!`,
       body: `${studentName} requested immediate SOS assistance${loc}.${note}`,
-      sound: 'default',
+      sound: 'emergency_alarm.mp3',
       priority: 'high',
       channelId: 'emergency-alerts',
       data: {
