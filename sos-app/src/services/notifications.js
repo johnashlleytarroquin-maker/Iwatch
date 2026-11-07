@@ -1,10 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform, Vibration } from 'react-native';
-import { Audio } from 'expo-av';
+import { createAudioPlayer } from 'expo-audio';
 import { api } from '../api';
 
-let currentSound = null;
+let currentPlayer = null;
 
 // Handle notification display while the app is in the foreground
 Notifications.setNotificationHandler({
@@ -43,7 +43,7 @@ export async function setupNotificationChannels() {
 }
 
 /**
- * Play loud emergency siren alarm on responder devices using Expo Audio.
+ * Play loud emergency siren alarm on responder devices using expo-audio.
  * Loops continuously until dismissed or accepted.
  */
 export async function playEmergencyAlarmSound(user) {
@@ -52,18 +52,13 @@ export async function playEmergencyAlarmSound(user) {
   try {
     await stopEmergencyAlarmSound();
 
-    await Audio.setAudioModeAsync({
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: true,
-      shouldDuckAndroid: false,
-    });
-
-    const { sound } = await Audio.Sound.createAsync(
-      require('../../assets/emergency_alarm.wav'),
-      { shouldPlay: true, isLooping: true, volume: 1.0 }
-    );
-    currentSound = sound;
-    await sound.playAsync();
+    const player = createAudioPlayer(require('../../assets/emergency_alarm.wav'));
+    if (player) {
+      player.loop = true;
+      player.volume = 1.0;
+      player.play();
+      currentPlayer = player;
+    }
   } catch (err) {
     console.warn('[notifications] Audio alarm playback notice:', err.message);
   }
@@ -74,10 +69,12 @@ export async function playEmergencyAlarmSound(user) {
  */
 export async function stopEmergencyAlarmSound() {
   try {
-    if (currentSound) {
-      await currentSound.stopAsync();
-      await currentSound.unloadAsync();
-      currentSound = null;
+    if (currentPlayer) {
+      currentPlayer.pause();
+      if (typeof currentPlayer.remove === 'function') {
+        currentPlayer.remove();
+      }
+      currentPlayer = null;
     }
   } catch {}
 }

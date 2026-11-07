@@ -40,7 +40,8 @@
           "icon": "./assets/icon.png",
           "color": "#24652B"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "web": {
       "favicon": "./assets/favicon.png"
