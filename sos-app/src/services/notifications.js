@@ -52,7 +52,7 @@ export async function playEmergencyAlarmSound(user) {
   try {
     await stopEmergencyAlarmSound();
 
-    const player = createAudioPlayer(require('../../assets/emergency_alarm.wav'));
+    const player = createAudioPlayer(require('../../assets/emergency_alarm.mp3'));
     if (player) {
       player.loop = true;
       player.volume = 1.0;
