@@ -394,12 +394,31 @@ async function sendPushToResponders(report) {
   }
 }
 
-// ---------- reports ----------
+// ---------- reports & campus geofence ----------
+const CAMPUS_GEOFENCE = {
+  name: 'Surigao del Norte State University - Main Campus',
+  lat: 9.78724,
+  lng: 125.49437,
+  radiusMeters: 500,
+};
+
+function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
+  if (typeof lat1 !== 'number' || typeof lon1 !== 'number') return 0;
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
 app.get('/api/report-types', (_req, res) => res.json({ types: REPORT_TYPES }));
 
 // Student presses SOS
 app.post('/api/reports', auth, role('student'), wrap(async (req, res) => {
-  const { type, locationText, lat, lng, note } = req.body || {};
+  const { type, locationText, lat, lng, note, isOffCampus: clientOffCampus } = req.body || {};
   if (!REPORT_TYPES.includes(type)) return res.status(400).json({ error: 'Choose an emergency type' });
   const loc = String(locationText || '').trim().slice(0, 200);
   const hasGps = typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng);
@@ -411,15 +430,34 @@ app.post('/api/reports', auth, role('student'), wrap(async (req, res) => {
     return res.status(409).json({ error: 'You already have an active report', report: existingReport });
   }
 
+  let isOffCampus = false;
+  let distanceMeters = 0;
+  if (hasGps) {
+    distanceMeters = calculateDistanceMeters(lat, lng, CAMPUS_GEOFENCE.lat, CAMPUS_GEOFENCE.lng);
+    isOffCampus = distanceMeters > CAMPUS_GEOFENCE.radiusMeters;
+  }
+  if (clientOffCampus) isOffCampus = true;
+
+  const geofenceTag = hasGps
+    ? isOffCampus
+      ? ` [Off-Campus: ~${(distanceMeters / 1000).toFixed(1)}km from SNSU]`
+      : ` [SNSU Campus: within ${distanceMeters}m]`
+    : '';
+
+  const finalLocation = loc ? `${loc}${geofenceTag}` : (geofenceTag.trim() || 'GPS Coordinates');
+
   const report = await createReport({
     studentId: req.user.id,
     type,
-    locationText: loc || null,
+    locationText: finalLocation,
     lat: hasGps ? lat : null,
     lng: hasGps ? lng : null,
     note: note ? String(note).slice(0, 500) : null,
   });
-  await audit(req.user.id, 'created', 'report', report.id, `${type} at ${loc || 'GPS only'}`);
+  report.isOffCampus = isOffCampus;
+  report.distanceToCampus = distanceMeters;
+
+  await audit(req.user.id, 'created', 'report', report.id, `${type} at ${finalLocation}`);
 
   io.to('staff').emit('report:new', report);
   sendPushToResponders(report);

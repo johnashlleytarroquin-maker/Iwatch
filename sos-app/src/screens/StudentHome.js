@@ -18,10 +18,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { EMERGENCY_NUMBER } from '../config';
+import { CAMPUS_CONFIG, EMERGENCY_NUMBER } from '../config';
 import { Avatar, Badge, Btn, Card, Field, Header, TOP, TypeIcon } from '../ui';
 import { ACTIVE, C, SHADOWS, STATUS, TYPES, fmtTime, timeAgo, typeInfo } from '../theme';
 import { fetchLiveWeather, generateHazardAnalysis, getAiSafetyAdvice } from '../services/weatherAi';
+import { checkCampusGeofence } from '../services/geofence';
+import OffCampusModal from '../components/OffCampusModal';
 
 export default function StudentHome() {
   const { user, logout, socket, updateUser } = useAuth();
@@ -32,6 +34,10 @@ export default function StudentHome() {
   const [weatherModalOpen, setWeatherModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState(null);
   const [prefilledNote, setPrefilledNote] = useState('');
+
+  // Campus Geofence & Boundary States
+  const [userCoords, setUserCoords] = useState(null);
+  const [demoOnCampus, setDemoOnCampus] = useState(false);
 
   // AI Weather & Hazard States
   const [weather, setWeather] = useState(null);
@@ -53,8 +59,8 @@ export default function StudentHome() {
   const loadWeather = useCallback(async () => {
     setWeatherLoading(true);
     try {
-      let lat = 14.5995;
-      let lng = 120.9842;
+      let lat = CAMPUS_CONFIG.latitude;
+      let lng = CAMPUS_CONFIG.longitude;
       const { status } = await Location.getForegroundPermissionsAsync();
       if (status === 'granted') {
         try {
@@ -64,9 +70,13 @@ export default function StudentHome() {
           ]);
           lat = pos.coords.latitude;
           lng = pos.coords.longitude;
+          setUserCoords({ lat, lng });
         } catch {
           // fallback to default campus coordinates
+          setUserCoords({ lat: CAMPUS_CONFIG.latitude, lng: CAMPUS_CONFIG.longitude });
         }
+      } else {
+        setUserCoords({ lat: CAMPUS_CONFIG.latitude, lng: CAMPUS_CONFIG.longitude });
       }
       const data = await fetchLiveWeather(lat, lng);
       setWeather(data);
@@ -275,6 +285,68 @@ export default function StudentHome() {
               </TouchableOpacity>
             ) : null}
 
+            {/* Campus Geofence Boundary Status Banner */}
+            {(() => {
+              const geofence = checkCampusGeofence(userCoords, demoOnCampus);
+              return (
+                <View style={s.campusBoundaryCard}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                    <View
+                      style={[
+                        s.boundaryIconCircle,
+                        { backgroundColor: geofence.isInsideCampus ? '#DCFCE7' : '#FEF3C7' },
+                      ]}
+                    >
+                      <Ionicons
+                        name={geofence.isInsideCampus ? 'shield-checkmark' : 'warning'}
+                        size={18}
+                        color={geofence.isInsideCampus ? C.green : '#B45309'}
+                      />
+                    </View>
+                    <View style={{ marginLeft: 10, flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={s.boundaryTitleText}>
+                          {geofence.isInsideCampus
+                            ? 'SNSU MAIN CAMPUS ACTIVE'
+                            : 'OUTSIDE CAMPUS BOUNDARY'}
+                        </Text>
+                        <View
+                          style={[
+                            s.liveDot,
+                            { backgroundColor: geofence.isInsideCampus ? C.green : C.amber },
+                          ]}
+                        />
+                      </View>
+                      <Text style={s.boundarySubText} numberOfLines={1}>
+                        {geofence.isInsideCampus
+                          ? 'Inside 500m Safe Zone • Campus Responders Ready'
+                          : `~${geofence.distanceFormatted} from SNSU • 911 Hotline Fallback Ready`}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Demo Simulation Switch for Thesis Defense */}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setDemoOnCampus((v) => !v)}
+                    style={[s.demoToggleBtn, demoOnCampus && s.demoToggleBtnActive]}
+                  >
+                    <Ionicons
+                      name={demoOnCampus ? 'checkbox' : 'square-outline'}
+                      size={13}
+                      color={demoOnCampus ? C.green : C.sub}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text
+                      style={[s.demoToggleText, demoOnCampus && s.demoToggleTextActive]}
+                    >
+                      {demoOnCampus ? 'Demo: On-Campus' : 'Simulate Inside'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
+
             {/* Central SOS Button Hero with Concentric Radar Waves */}
             <View style={s.sosHeroContainer}>
               <View style={s.sosOuterRing3}>
@@ -387,6 +459,7 @@ export default function StudentHome() {
           setPrefilledNote('');
         }}
         onSent={onSent}
+        demoOnCampus={demoOnCampus}
       />
 
       {/* Student Profile Dashboard Modal */}
@@ -959,13 +1032,14 @@ function ActiveIncidentCard({ report, onCancel }) {
 }
 
 // Modal for Composing and Submitting Emergency SOS
-function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
+function ComposeModal({ visible, initialType, initialNote, onClose, onSent, demoOnCampus = false }) {
   const [type, setType] = useState(initialType || null);
   const [loc, setLoc] = useState('');
   const [note, setNote] = useState(initialNote || '');
   const [coords, setCoords] = useState(null);
   const [gps, setGps] = useState('idle'); // idle | loading | ok | denied | failed
   const [sending, setSending] = useState(false);
+  const [offCampusModalOpen, setOffCampusModalOpen] = useState(false);
 
   const getGps = useCallback(async () => {
     setGps('loading');
@@ -992,20 +1066,34 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
       setLoc('');
       setNote(initialNote || '');
       setCoords(null);
+      setOffCampusModalOpen(false);
       getGps();
     }
   }, [visible, initialType, initialNote, getGps]);
 
-  const send = async () => {
+  const geofence = checkCampusGeofence(coords, demoOnCampus);
+
+  const send = async (forceOffCampus = false) => {
+    // If GPS is locked and user is outside the 500m SNSU boundary, show 911 fallback modal
+    if (coords && !geofence.isInsideCampus && !forceOffCampus) {
+      setOffCampusModalOpen(true);
+      return;
+    }
+
     setSending(true);
     try {
+      const finalLat = geofence.simulated ? CAMPUS_CONFIG.latitude : coords?.lat;
+      const finalLng = geofence.simulated ? CAMPUS_CONFIG.longitude : coords?.lng;
       const { report } = await api.post('/api/reports', {
         type,
         locationText: loc.trim(),
-        lat: coords?.lat,
-        lng: coords?.lng,
+        lat: finalLat,
+        lng: finalLng,
         note: note.trim(),
+        isOffCampus: !geofence.isInsideCampus,
+        distanceToCampus: geofence.distanceMeters,
       });
+      setOffCampusModalOpen(false);
       onSent(report);
     } catch (e) {
       if (e.status === 409 && e.data?.report) onSent(e.data.report);
@@ -1103,6 +1191,36 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
             ) : null}
           </View>
 
+          {/* Campus Geofence Verification Pill */}
+          {coords ? (
+            <View
+              style={[
+                s.geofencePill,
+                {
+                  backgroundColor: geofence.isInsideCampus ? '#DCFCE7' : '#FEF3C7',
+                  borderColor: geofence.isInsideCampus ? '#86EFAC' : '#FDE68A',
+                },
+              ]}
+            >
+              <Ionicons
+                name={geofence.isInsideCampus ? 'shield-checkmark' : 'warning'}
+                size={14}
+                color={geofence.isInsideCampus ? C.green : '#B45309'}
+                style={{ marginRight: 6 }}
+              />
+              <Text
+                style={[
+                  s.geofencePillText,
+                  { color: geofence.isInsideCampus ? C.green : '#92400E' },
+                ]}
+              >
+                {geofence.isInsideCampus
+                  ? 'SNSU Main Campus Boundary Verified (Within 500m)'
+                  : `Outside Campus Boundary (~${geofence.distanceFormatted} away • 911 Ready)`}
+              </Text>
+            </View>
+          ) : null}
+
           <Field
             label="Specific Location (Building, Floor, Room)"
             value={loc}
@@ -1124,7 +1242,7 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
           {/* Submit Button */}
           <Btn
             title="TRANSMIT EMERGENCY SOS"
-            onPress={send}
+            onPress={() => send(false)}
             color={C.red}
             disabled={!canSend}
             loading={sending}
@@ -1137,6 +1255,14 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
             <Text style={s.modalHelpText}>Enter your location or allow GPS access to continue.</Text>
           ) : null}
         </ScrollView>
+
+        {/* Intelligent 911 Fallback Modal when triggered outside campus */}
+        <OffCampusModal
+          visible={offCampusModalOpen}
+          distanceFormatted={geofence.distanceFormatted}
+          onProceedRecord={() => send(true)}
+          onDismiss={() => setOffCampusModalOpen(false)}
+        />
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -2182,5 +2308,79 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: C.text,
     marginTop: 1,
+  },
+  campusBoundaryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    ...SHADOWS.sm,
+  },
+  boundaryIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  boundaryTitleText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: C.text,
+    letterSpacing: 0.5,
+  },
+  boundarySubText: {
+    fontSize: 11,
+    color: C.sub,
+    marginTop: 1,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginLeft: 6,
+  },
+  demoToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  demoToggleBtnActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  demoToggleText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.sub,
+  },
+  demoToggleTextActive: {
+    color: C.green,
+  },
+  geofencePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  geofencePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    flex: 1,
   },
 });
