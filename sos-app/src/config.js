@@ -19,6 +19,6 @@ export const CAMPUS_CONFIG = {
   address: 'Narciso Street, Surigao City, Surigao del Norte',
   latitude: 9.78724,
   longitude: 125.49437,
-  radiusMeters: 500, // 500-meter radius boundary
+  radiusMeters: 200, // 200-meter radius boundary
   emergencyHotline: '911',
 };

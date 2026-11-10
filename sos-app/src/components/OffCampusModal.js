@@ -50,7 +50,7 @@ export default function OffCampusModal({
           {/* Explanation Text */}
           <View style={s.infoBox}>
             <Text style={s.infoText}>
-              Iwatch emergency dispatch is configured for <Text style={s.bold}>on-campus response (500m boundary)</Text>.
+              Iwatch emergency dispatch is configured for <Text style={s.bold}>on-campus response ({CAMPUS_CONFIG.radiusMeters}m boundary)</Text>.
               Campus safety officers cannot physically deploy off-campus.
             </Text>
             <Text style={[s.infoText, { marginTop: 8 }]}>

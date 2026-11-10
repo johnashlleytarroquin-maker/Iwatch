@@ -319,7 +319,7 @@ export default function StudentHome() {
                       </View>
                       <Text style={s.boundarySubText} numberOfLines={1}>
                         {geofence.isInsideCampus
-                          ? 'Inside 500m Safe Zone • Campus Responders Ready'
+                          ? `Inside ${CAMPUS_CONFIG.radiusMeters}m Safe Zone • Campus Responders Ready`
                           : `~${geofence.distanceFormatted} from SNSU • 911 Hotline Fallback Ready`}
                       </Text>
                     </View>
@@ -1215,7 +1215,7 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent, demo
                 ]}
               >
                 {geofence.isInsideCampus
-                  ? 'SNSU Main Campus Boundary Verified (Within 500m)'
+                  ? `SNSU Main Campus Boundary Verified (Within ${CAMPUS_CONFIG.radiusMeters}m)`
                   : `Outside Campus Boundary (~${geofence.distanceFormatted} away • 911 Ready)`}
               </Text>
             </View>
