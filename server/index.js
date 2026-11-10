@@ -399,7 +399,7 @@ const CAMPUS_GEOFENCE = {
   name: 'Surigao del Norte State University - Main Campus',
   lat: 9.78724,
   lng: 125.49437,
-  radiusMeters: 200,
+  radiusMeters: 150,
 };
 
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
