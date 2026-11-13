@@ -22,6 +22,8 @@ export default function ReportList({ data, onPress, onRefresh, loading, empty, h
           <View style={{ paddingVertical: 48, alignItems: 'center' }}>
             <ActivityIndicator size="large" color={C.blue} />
           </View>
+        ) : React.isValidElement(empty) ? (
+          empty
         ) : (
           <Empty icon="shield-checkmark-outline" text={empty || 'No incidents reported.'} />
         )

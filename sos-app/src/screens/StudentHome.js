@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -580,15 +581,6 @@ function WeatherSafetyModal({ visible, weather, analysis, onClose, onRefresh, on
                   <Text style={s.warningSignLabel}>⚠️ WARNING SIGNS IN CLASSMATES:</Text>
                   <Text style={s.warningSignText}>{em.warningSign}</Text>
                 </View>
-
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => onTriggerSos(em.type, `Weather hazard: Witnessed ${em.title}`)}
-                  style={s.reportHazardBtn}
-                >
-                  <Ionicons name="warning" size={14} color={C.red} style={{ marginRight: 4 }} />
-                  <Text style={s.reportHazardBtnText}>Report this incident now via SOS</Text>
-                </TouchableOpacity>
               </View>
             ))}
           </View>
@@ -1019,6 +1011,43 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
   const [sending, setSending] = useState(false);
   const [offCampusModalOpen, setOffCampusModalOpen] = useState(false);
 
+  const scrollViewRef = useRef(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates?.height || 280);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const scrollToInput = (yOffset) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: yOffset, animated: true });
+    }, 100);
+  };
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  };
+
   const getGps = useCallback(async () => {
     setGps('loading');
     try {
@@ -1114,8 +1143,14 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
         </View>
 
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+          ref={scrollViewRef}
+          contentContainerStyle={{
+            padding: 20,
+            paddingBottom: keyboardVisible ? Math.max(keyboardHeight + 80, 360) : 40,
+          }}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
         >
           {/* Step 1: Emergency Type */}
           <Text style={[s.inputStepTitle, initialType && { textAlign: 'center' }]}>1. SELECT EMERGENCY CLASSIFICATION</Text>
@@ -1205,6 +1240,7 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
             onChangeText={setLoc}
             placeholder="e.g. Science Building, 3rd Floor, Room 302"
             maxLength={200}
+            onFocus={() => scrollToInput(240)}
           />
 
           <Field
@@ -1215,7 +1251,18 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
             multiline
             maxLength={500}
             style={{ minHeight: 70, textAlignVertical: 'top' }}
+            onFocus={scrollToBottom}
           />
+
+          {/* Anti-Prank Ordinance Warning Banner */}
+          <View style={s.antiPrankBanner}>
+            <Ionicons name="warning-outline" size={20} color="#DC2626" style={{ marginRight: 8, marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.antiPrankText}>
+                Fake, prank, and test emergency reports are strictly prohibited in accordance with the Anti-Prank Call Ordinance of the Provincial Government of Surigao del Norte. Any individual found making false or misleading emergency reports may face legal consequences, penalties, and other sanctions as provided by applicable laws and local ordinances.
+              </Text>
+            </View>
+          </View>
 
           {/* Submit Button */}
           <Btn
@@ -2356,5 +2403,22 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     flex: 1,
+  },
+  antiPrankBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  antiPrankText: {
+    fontSize: 11,
+    color: '#991B1B',
+    lineHeight: 16,
+    fontWeight: '600',
   },
 });

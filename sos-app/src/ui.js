@@ -518,7 +518,7 @@ const s = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: C.border,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 16,
     paddingTop: 8,
   },
   tabBar: {

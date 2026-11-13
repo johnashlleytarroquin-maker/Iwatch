@@ -15,7 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../auth';
 import { useReports } from '../useReports';
-import { Avatar, Badge, Btn, Card, Field, Header, TabBar } from '../ui';
+import { Avatar, Badge, Btn, Card, Field, Header, TabBar, TOP } from '../ui';
 import { ACTIVE, C, SHADOWS, fmtTime } from '../theme';
 import { api, getToken } from '../api';
 import AlertModal from '../components/AlertModal';
@@ -78,55 +78,84 @@ export default function ResponderHome() {
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>
-      <Header
-        title="Responder Dispatch"
-        subtitle={`${user.name} • On Duty (🟢 ${presence.activeResponders} Online)`}
-        right={
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setProfileOpen(true)}
-              style={s.profileHeaderPill}
-            >
-              <Avatar uri={user.avatar} name={user.name} size="sm" color={C.forest} style={{ marginRight: 6 }} />
-              <Text style={s.profileHeaderPillText}>Profile</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleLogout}
-              style={s.signOutBtn}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="log-out-outline" size={16} color={C.sub} style={{ marginRight: 4 }} />
-              <Text style={{ color: C.sub, fontWeight: '700', fontSize: 13 }}>Sign out</Text>
-            </TouchableOpacity>
+      {/* Top Header */}
+      <View style={s.topHeader}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={() => setProfileOpen(true)}
+          style={s.profileHeaderBtn}
+        >
+          <View style={{ position: 'relative' }}>
+            <Avatar uri={user?.avatar} name={user?.name} size="md" color={C.forest} />
+            <View style={s.onlineDot} />
           </View>
-        }
-      />
-
-      {/* Dispatch Status Bar */}
-      <View style={s.summaryBar}>
-        <View style={s.summaryItem}>
-          <Text style={[s.summaryVal, waiting > 0 && { color: C.red }]}>{waiting}</Text>
-          <Text style={s.summaryLabel}>WAITING DISPATCH</Text>
-        </View>
-        <View style={s.summaryDivider} />
-        <View style={s.summaryItem}>
-          <Text style={s.summaryVal}>{active.length}</Text>
-          <Text style={s.summaryLabel}>TOTAL ACTIVE</Text>
-        </View>
-        <View style={s.summaryDivider} />
-        <View style={s.summaryItem}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={s.greenDot} />
-            <Text style={[s.summaryVal, { color: C.green }]}>{presence.activeResponders}</Text>
+          <View style={{ marginLeft: 10, flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={s.greetingName} numberOfLines={1}>
+                {user?.name}
+              </Text>
+              <View style={s.dutyBadge}>
+                <View style={s.greenDotMini} />
+                <Text style={s.dutyBadgeText}>ON DUTY</Text>
+              </View>
+            </View>
+            <Text style={s.greetingSub} numberOfLines={1}>
+              Responder Dispatch • {presence.activeResponders} Online
+            </Text>
           </View>
-          <Text style={s.summaryLabel}>ON-DUTY NOW</Text>
+        </TouchableOpacity>
+
+        <View style={s.headerActions}>
+          <TouchableOpacity
+            onPress={() => setProfileOpen(true)}
+            style={s.headerCircleBtn}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="person" size={17} color={C.forest} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={s.headerSignOutBtn}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+          </TouchableOpacity>
         </View>
-        <View style={s.summaryDivider} />
-        <View style={s.summaryItem}>
-          <Text style={[s.summaryVal, { color: C.text }]}>{presence.activeUsers}</Text>
-          <Text style={s.summaryLabel}>CAMPUS USERS</Text>
+      </View>
+
+      {/* Dispatch Metrics Dashboard Card */}
+      <View style={s.metricsContainer}>
+        <View style={[s.metricCard, waiting > 0 && s.metricCardUrgent]}>
+          <View style={s.metricHeader}>
+            <Ionicons name="notifications-outline" size={13} color={waiting > 0 ? C.red : C.sub} />
+            <Text style={[s.metricLabel, waiting > 0 && { color: C.red }]}>WAITING</Text>
+          </View>
+          <Text style={[s.metricVal, waiting > 0 && { color: C.red }]}>{waiting}</Text>
+        </View>
+
+        <View style={s.metricCard}>
+          <View style={s.metricHeader}>
+            <Ionicons name="flash-outline" size={13} color={C.sub} />
+            <Text style={s.metricLabel}>ACTIVE</Text>
+          </View>
+          <Text style={s.metricVal}>{active.length}</Text>
+        </View>
+
+        <View style={s.metricCard}>
+          <View style={s.metricHeader}>
+            <View style={s.pulseGreenMini} />
+            <Text style={[s.metricLabel, { color: C.green }]}>ON DUTY</Text>
+          </View>
+          <Text style={[s.metricVal, { color: C.green }]}>{presence.activeResponders}</Text>
+        </View>
+
+        <View style={s.metricCard}>
+          <View style={s.metricHeader}>
+            <Ionicons name="people-outline" size={13} color={C.sub} />
+            <Text style={s.metricLabel}>CAMPUS</Text>
+          </View>
+          <Text style={s.metricVal}>{presence.activeUsers}</Text>
         </View>
       </View>
 
@@ -137,7 +166,21 @@ export default function ResponderHome() {
             loading={loading}
             onRefresh={reload}
             onPress={(r) => setSelectedId(r.id)}
-            empty="No active emergencies on campus. All clear."
+            empty={
+              <View style={s.allClearBox}>
+                <View style={s.allClearIconCircle}>
+                  <Ionicons name="shield-checkmark" size={42} color={C.forest} />
+                </View>
+                <Text style={s.allClearTitle}>Campus Perimeter All Clear</Text>
+                <Text style={s.allClearSub}>
+                  No active emergencies reported. You are actively on duty to receive incoming SOS alerts.
+                </Text>
+                <View style={s.liveMonitorPill}>
+                  <View style={s.pulseDotGreen} />
+                  <Text style={s.liveMonitorText}>24/7 BACKGROUND MONITORING ACTIVE</Text>
+                </View>
+              </View>
+            }
           />
         ) : (
           <ReportList
@@ -429,56 +472,200 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.forestBorder,
   },
-  profileHeaderPillText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: C.forest,
-    marginRight: 4,
-  },
-  signOutBtn: {
+  topHeader: {
+    paddingTop: TOP,
+    paddingBottom: 14,
+    paddingHorizontal: 18,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: C.cardSubtle,
+    justifyContent: 'space-between',
   },
-  summaryBar: {
+  profileHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: C.green,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  greetingName: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: C.text,
+    marginRight: 6,
+  },
+  dutyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  greenDotMini: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#15803D',
+    marginRight: 4,
+  },
+  dutyBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#15803D',
+    letterSpacing: 0.5,
+  },
+  greetingSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.sub,
+    marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 8,
+  },
+  headerCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSignOutBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Metrics dashboard
+  metricsContainer: {
     flexDirection: 'row',
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: C.borderLight,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 8,
   },
-  summaryItem: {
+  metricCard: {
     flex: 1,
+    backgroundColor: C.bg,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: C.borderLight,
   },
-  summaryVal: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: C.text,
+  metricCardUrgent: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECDD3',
   },
-  summaryLabel: {
+  metricHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  metricLabel: {
     fontSize: 9,
     fontWeight: '800',
     color: C.sub,
+    marginLeft: 3,
     letterSpacing: 0.4,
-    marginTop: 2,
   },
-  summaryDivider: {
-    width: 1,
-    height: '70%',
-    backgroundColor: C.border,
-    alignSelf: 'center',
+  metricVal: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: C.text,
   },
-  greenDot: {
+  pulseGreenMini: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: C.green,
+  },
+
+  // All clear empty state
+  allClearBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 24,
+  },
+  allClearIconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: '#DCFCE7',
+    borderWidth: 3,
+    borderColor: '#BBF7D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    ...SHADOWS.sm,
+  },
+  allClearTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: C.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  allClearSub: {
+    fontSize: 13,
+    color: C.sub,
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 280,
+    marginBottom: 20,
+  },
+  liveMonitorPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  pulseDotGreen: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: C.green,
-    marginRight: 4,
+    backgroundColor: '#16A34A',
+    marginRight: 6,
+  },
+  liveMonitorText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+    letterSpacing: 0.5,
   },
 
   // Modal Header Styles
