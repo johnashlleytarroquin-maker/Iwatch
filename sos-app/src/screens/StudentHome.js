@@ -37,7 +37,6 @@ export default function StudentHome() {
 
   // Campus Geofence & Boundary States
   const [userCoords, setUserCoords] = useState(null);
-  const [demoOnCampus, setDemoOnCampus] = useState(false);
 
   // AI Weather & Hazard States
   const [weather, setWeather] = useState(null);
@@ -163,41 +162,42 @@ export default function StudentHome() {
           style={s.profileHeaderBtn}
         >
           <View style={{ position: 'relative' }}>
-            <Avatar uri={user?.avatar} name={user?.name} size="md" color={C.indigo} />
+            <Avatar uri={user?.avatar} name={user?.name} size="md" color={C.forest} />
             <View style={s.onlineDot} />
           </View>
-          <View style={{ marginLeft: 12, flex: 1 }}>
+          <View style={{ marginLeft: 10, flex: 1, minWidth: 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={s.greetingName} numberOfLines={1}>
                 {user?.name?.split(' ')[0]}
               </Text>
-              <Badge text="STUDENT" color={C.blue} bg={C.blueBg} size="sm" />
+              <View style={s.studentBadge}>
+                <Text style={s.studentBadgeText}>STUDENT</Text>
+              </View>
             </View>
-            <Text style={s.greetingSub}>
+            <Text style={s.greetingSub} numberOfLines={1}>
               {user?.idNumber ? `ID: ${user.idNumber}` : 'Tap to edit profile'}
             </Text>
           </View>
         </TouchableOpacity>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={s.headerActions}>
           {weather ? (
             <TouchableOpacity
               onPress={() => setWeatherModalOpen(true)}
               style={s.weatherHeaderPill}
               activeOpacity={0.75}
             >
-              <Ionicons name={weather.icon} size={16} color={weather.color} style={{ marginRight: 4 }} />
+              <Ionicons name={weather.icon} size={15} color={weather.color} style={{ marginRight: 4 }} />
               <Text style={s.weatherHeaderTemp}>{weather.temp}°C</Text>
             </TouchableOpacity>
           ) : null}
 
           <TouchableOpacity
             onPress={() => setProfileOpen(true)}
-            style={s.profilePill}
+            style={s.profileCircleBtn}
             activeOpacity={0.75}
           >
-            <Ionicons name="person-circle" size={17} color={C.indigo} style={{ marginRight: 3 }} />
-            <Text style={s.profilePillText}>Profile</Text>
+            <Ionicons name="person" size={17} color={C.forest} />
           </TouchableOpacity>
         </View>
       </View>
@@ -287,62 +287,41 @@ export default function StudentHome() {
 
             {/* Campus Geofence Boundary Status Banner */}
             {(() => {
-              const geofence = checkCampusGeofence(userCoords, demoOnCampus);
+              const geofence = checkCampusGeofence(userCoords);
               return (
                 <View style={s.campusBoundaryCard}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                    <View
-                      style={[
-                        s.boundaryIconCircle,
-                        { backgroundColor: geofence.isInsideCampus ? '#DCFCE7' : '#FEF3C7' },
-                      ]}
-                    >
-                      <Ionicons
-                        name={geofence.isInsideCampus ? 'shield-checkmark' : 'warning'}
-                        size={18}
-                        color={geofence.isInsideCampus ? C.green : '#B45309'}
-                      />
-                    </View>
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={s.boundaryTitleText}>
-                          {geofence.isInsideCampus
-                            ? 'SNSU MAIN CAMPUS ACTIVE'
-                            : 'OUTSIDE CAMPUS BOUNDARY'}
-                        </Text>
-                        <View
-                          style={[
-                            s.liveDot,
-                            { backgroundColor: geofence.isInsideCampus ? C.green : C.amber },
-                          ]}
-                        />
-                      </View>
-                      <Text style={s.boundarySubText} numberOfLines={1}>
-                        {geofence.isInsideCampus
-                          ? `Inside ${CAMPUS_CONFIG.radiusMeters}m Safe Zone • Campus Responders Ready`
-                          : `~${geofence.distanceFormatted} from SNSU • 911 Hotline Fallback Ready`}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Demo Simulation Switch for Thesis Defense */}
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => setDemoOnCampus((v) => !v)}
-                    style={[s.demoToggleBtn, demoOnCampus && s.demoToggleBtnActive]}
+                  <View
+                    style={[
+                      s.boundaryIconCircle,
+                      { backgroundColor: geofence.isInsideCampus ? '#DCFCE7' : '#FEF3C7' },
+                    ]}
                   >
                     <Ionicons
-                      name={demoOnCampus ? 'checkbox' : 'square-outline'}
-                      size={13}
-                      color={demoOnCampus ? C.green : C.sub}
-                      style={{ marginRight: 4 }}
+                      name={geofence.isInsideCampus ? 'shield-checkmark' : 'warning'}
+                      size={18}
+                      color={geofence.isInsideCampus ? C.green : '#B45309'}
                     />
-                    <Text
-                      style={[s.demoToggleText, demoOnCampus && s.demoToggleTextActive]}
-                    >
-                      {demoOnCampus ? 'Demo: On-Campus' : 'Simulate Inside'}
+                  </View>
+                  <View style={{ marginLeft: 10, flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={s.boundaryTitleText}>
+                        {geofence.isInsideCampus
+                          ? 'SNSU MAIN CAMPUS ACTIVE'
+                          : 'OUTSIDE CAMPUS BOUNDARY'}
+                      </Text>
+                      <View
+                        style={[
+                          s.liveDot,
+                          { backgroundColor: geofence.isInsideCampus ? C.green : C.amber },
+                        ]}
+                      />
+                    </View>
+                    <Text style={s.boundarySubText} numberOfLines={1}>
+                      {geofence.isInsideCampus
+                        ? `Inside ${CAMPUS_CONFIG.radiusMeters}m Safe Zone • Campus Responders Ready`
+                        : `~${geofence.distanceFormatted} from SNSU • 911 Hotline Fallback Ready`}
                     </Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
               );
             })()}
@@ -459,7 +438,6 @@ export default function StudentHome() {
           setPrefilledNote('');
         }}
         onSent={onSent}
-        demoOnCampus={demoOnCampus}
       />
 
       {/* Student Profile Dashboard Modal */}
@@ -529,20 +507,20 @@ function WeatherSafetyModal({ visible, weather, analysis, onClose, onRefresh, on
         <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 50 }}>
           {/* Live Weather HUD Banner */}
           <View style={[s.weatherHudCard, { borderColor: weather.color }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0, marginRight: 8 }}>
                 <View style={[s.weatherHudIcon, { backgroundColor: weather.bg }]}>
-                  <Ionicons name={weather.icon} size={36} color={weather.color} />
+                  <Ionicons name={weather.icon} size={32} color={weather.color} />
                 </View>
-                <View style={{ marginLeft: 12 }}>
+                <View style={{ marginLeft: 10, flex: 1, minWidth: 0 }}>
                   <Text style={s.hudTempText}>{weather.temp}°C</Text>
-                  <Text style={s.hudConditionText}>{weather.label}</Text>
+                  <Text style={s.hudConditionText} numberOfLines={1} ellipsizeMode="tail">{weather.label}</Text>
                   <Text style={s.hudFeelsText}>Apparent Temp: {weather.feelsLike}°C</Text>
                 </View>
               </View>
 
               <View style={[s.hudRiskBadge, { backgroundColor: analysis.riskBg, borderColor: analysis.riskColor }]}>
-                <MaterialCommunityIcons name="shield-alert" size={18} color={analysis.riskColor} />
+                <MaterialCommunityIcons name="shield-alert" size={16} color={analysis.riskColor} />
                 <Text style={[s.hudRiskText, { color: analysis.riskColor }]}>{analysis.riskLevel}</Text>
                 <Text style={s.hudRiskSub}>THREAT</Text>
               </View>
@@ -1032,7 +1010,7 @@ function ActiveIncidentCard({ report, onCancel }) {
 }
 
 // Modal for Composing and Submitting Emergency SOS
-function ComposeModal({ visible, initialType, initialNote, onClose, onSent, demoOnCampus = false }) {
+function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
   const [type, setType] = useState(initialType || null);
   const [loc, setLoc] = useState('');
   const [note, setNote] = useState(initialNote || '');
@@ -1071,10 +1049,10 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent, demo
     }
   }, [visible, initialType, initialNote, getGps]);
 
-  const geofence = checkCampusGeofence(coords, demoOnCampus);
+  const geofence = checkCampusGeofence(coords);
 
   const send = async (forceOffCampus = false) => {
-    // If GPS is locked and user is outside the 500m SNSU boundary, show 911 fallback modal
+    // If GPS is locked and user is outside the SNSU boundary, show 911 fallback modal
     if (coords && !geofence.isInsideCampus && !forceOffCampus) {
       setOffCampusModalOpen(true);
       return;
@@ -1082,8 +1060,8 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent, demo
 
     setSending(true);
     try {
-      const finalLat = geofence.simulated ? CAMPUS_CONFIG.latitude : coords?.lat;
-      const finalLng = geofence.simulated ? CAMPUS_CONFIG.longitude : coords?.lng;
+      const finalLat = coords?.lat;
+      const finalLng = coords?.lng;
       const { report } = await api.post('/api/reports', {
         type,
         locationText: loc.trim(),
@@ -1284,7 +1262,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 6,
+    marginRight: 8,
   },
   onlineDot: {
     position: 'absolute',
@@ -1301,7 +1279,21 @@ const s = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: C.text,
-    marginRight: 8,
+    marginRight: 6,
+  },
+  studentBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  studentBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#15803D',
+    letterSpacing: 0.5,
   },
   greetingSub: {
     fontSize: 12,
@@ -1309,36 +1301,36 @@ const s = StyleSheet.create({
     color: C.sub,
     marginTop: 2,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
   weatherHeaderPill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: C.cardSubtle,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: C.border,
-    marginRight: 8,
   },
   weatherHeaderTemp: {
     fontSize: 12,
     fontWeight: '800',
     color: C.text,
   },
-  profilePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.indigoBg,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    borderRadius: 20,
+  profileCircleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: C.indigoBorder,
-  },
-  profilePillText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: C.indigo,
+    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
   },
 
   statusBar: {
@@ -1942,11 +1934,12 @@ const s = StyleSheet.create({
     ...SHADOWS.md,
   },
   weatherHudIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 16,
+    width: 50,
+    height: 50,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   hudTempText: {
     fontSize: 28,
@@ -1966,10 +1959,13 @@ const s = StyleSheet.create({
   },
   hudRiskBadge: {
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
     borderWidth: 1.5,
+    minWidth: 72,
+    flexShrink: 0,
   },
   hudRiskText: {
     fontSize: 13,
@@ -2345,28 +2341,6 @@ const s = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     marginLeft: 6,
-  },
-  demoToggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  demoToggleBtnActive: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#86EFAC',
-  },
-  demoToggleText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: C.sub,
-  },
-  demoToggleTextActive: {
-    color: C.green,
   },
   geofencePill: {
     flexDirection: 'row',
