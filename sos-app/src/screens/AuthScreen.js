@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -43,6 +44,52 @@ export default function AuthScreen() {
     }
     return () => clearTimeout(timer);
   }, [resendCooldown]);
+
+  // Refs for smooth keyboard navigation & auto-scrolling
+  const scrollViewRef = useRef(null);
+  const nameInputRef = useRef(null);
+  const idNumberInputRef = useRef(null);
+  const phoneInputRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+
+  // Soft keyboard height & visibility tracking
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates?.height || 280);
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  // Smooth scroll helpers to prevent keyboard covering input fields
+  const scrollToInput = (yOffset) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({ y: yOffset, animated: true });
+    }, 100);
+  };
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  };
 
   const submit = async () => {
     const cleanEmail = email.trim().toLowerCase();
@@ -178,23 +225,44 @@ export default function AuthScreen() {
   const ready =
     email.trim() && password && (mode === 'login' || (name.trim() && password.length >= 6));
 
+  const dynamicPaddingBottom = keyboardVisible ? Math.max(keyboardHeight + 80, 360) : 48;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: C.bg }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: TOP + 16, paddingBottom: 48 }}
+        ref={scrollViewRef}
+        contentContainerStyle={{
+          paddingHorizontal: 24,
+          paddingTop: TOP + (keyboardVisible ? 6 : 16),
+          paddingBottom: dynamicPaddingBottom,
+        }}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
       >
-        {/* Brand Shield & Title */}
-        <View style={s.hero}>
-          <View style={s.shieldBadge}>
-            <MaterialCommunityIcons name="hospital-box" size={40} color={C.gold} />
+        {/* Brand Shield & Title (Compact when keyboard is active to maximize typing space) */}
+        {!keyboardVisible ? (
+          <View style={s.hero}>
+            <View style={s.shieldBadge}>
+              <MaterialCommunityIcons name="hospital-box" size={40} color={C.gold} />
+            </View>
+            <Text style={s.brandTitle}>Iwatch</Text>
+            <Text style={s.brandSubtitle}>Campus Emergency Response Network</Text>
           </View>
-          <Text style={s.brandTitle}>Iwatch</Text>
-          <Text style={s.brandSubtitle}>Campus Emergency Response Network</Text>
-        </View>
+        ) : (
+          <View style={s.heroCompact}>
+            <View style={s.shieldBadgeCompact}>
+              <MaterialCommunityIcons name="hospital-box" size={18} color={C.gold} />
+            </View>
+            <View style={{ marginLeft: 10 }}>
+              <Text style={s.brandTitleCompact}>Iwatch</Text>
+              <Text style={s.brandSubtitleCompact}>Campus Emergency Network</Text>
+            </View>
+          </View>
+        )}
 
         {/* Notice Banner */}
         {notice ? (
@@ -346,31 +414,44 @@ export default function AuthScreen() {
                   )}
 
                   <Field
+                    ref={nameInputRef}
                     label="Full Name"
                     value={name}
                     onChangeText={setName}
                     placeholder="e.g. Juan B Dela Cruz"
+                    returnKeyType="next"
+                    onFocus={() => scrollToInput(50)}
+                    onSubmitEditing={() => idNumberInputRef.current?.focus()}
                   />
 
                   <Field
+                    ref={idNumberInputRef}
                     label={role === 'student' ? 'Student ID Number' : 'Responder ID'}
                     value={idNumber}
                     onChangeText={setIdNumber}
                     placeholder="e.g. 2024-10892"
                     autoCapitalize="characters"
+                    returnKeyType="next"
+                    onFocus={() => scrollToInput(130)}
+                    onSubmitEditing={() => phoneInputRef.current?.focus()}
                   />
 
                   <Field
+                    ref={phoneInputRef}
                     label="Contact Phone (for emergency purposes)"
                     value={phone}
                     onChangeText={setPhone}
                     placeholder="e.g. 09173698673"
                     keyboardType="phone-pad"
+                    returnKeyType="next"
+                    onFocus={() => scrollToInput(210)}
+                    onSubmitEditing={() => emailInputRef.current?.focus()}
                   />
                 </>
               )}
 
               <Field
+                ref={emailInputRef}
                 label={mode === 'register' ? 'Personal Gmail Account' : 'Email / Gmail Address'}
                 value={email}
                 onChangeText={setEmail}
@@ -378,15 +459,24 @@ export default function AuthScreen() {
                 keyboardType="email-address"
                 autoCorrect={false}
                 placeholder={mode === 'register' ? 'yourname@gmail.com' : 'Juandelacruz@gmail.com'}
+                returnKeyType="next"
+                onFocus={() => scrollToInput(mode === 'register' ? 290 : 50)}
+                onSubmitEditing={() => passwordInputRef.current?.focus()}
               />
 
               <Field
+                ref={passwordInputRef}
                 label={mode === 'register' ? 'Password (min. 6 characters)' : 'Password'}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
                 autoCapitalize="none"
                 placeholder="••••••••"
+                returnKeyType={ready ? 'done' : 'default'}
+                onFocus={scrollToBottom}
+                onSubmitEditing={() => {
+                  if (ready) submit();
+                }}
               />
 
               <Btn
@@ -426,6 +516,34 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     marginTop: 8,
+  },
+  heroCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  shieldBadgeCompact: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: C.forest,
+    borderWidth: 2,
+    borderColor: C.gold,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandTitleCompact: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: C.forest,
+    letterSpacing: 0.5,
+  },
+  brandSubtitleCompact: {
+    fontSize: 11,
+    color: C.sub,
+    fontWeight: '600',
   },
   shieldBadge: {
     width: 76,

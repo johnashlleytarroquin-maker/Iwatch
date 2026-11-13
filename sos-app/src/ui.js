@@ -146,23 +146,29 @@ export function Btn({
   );
 }
 
-export function Field({
-  label,
-  style,
-  inputStyle,
-  helper,
-  error,
-  secureTextEntry,
-  icon,
-  ...props
-}) {
+export const Field = React.forwardRef(function Field(
+  {
+    label,
+    style,
+    inputStyle,
+    helper,
+    error,
+    secureTextEntry,
+    icon,
+    inputRef,
+    ...props
+  },
+  ref
+) {
   const [showPassword, setShowPassword] = useState(false);
+  const resolvedRef = ref || inputRef;
 
   return (
     <View style={s.fieldWrapper}>
       {label ? <Text style={s.label}>{label}</Text> : null}
       <View style={[s.inputBox, error && s.inputBoxError]}>
         <TextInput
+          ref={resolvedRef}
           placeholderTextColor={C.muted}
           secureTextEntry={Boolean(secureTextEntry && !showPassword)}
           style={[s.input, style, inputStyle]}
@@ -190,7 +196,7 @@ export function Field({
       ) : null}
     </View>
   );
-}
+});
 
 export function Badge({ text, color = C.blue, bg, withDot = true, size = 'md' }) {
   const isSmall = size === 'sm';
