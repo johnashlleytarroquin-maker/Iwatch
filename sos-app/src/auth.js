@@ -1,12 +1,9 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Alert, AppState } from 'react-native';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io } from 'socket.io-client';
 import { API_URL } from './config';
 import { api, getToken, setToken, setUnauthorizedHandler } from './api';
-
-// Inactivity session timeout: 15 minutes
-const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
 
 const AuthContext = createContext(null);
 export const useAuth = () => useContext(AuthContext);
@@ -15,29 +12,18 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
   const [socket, setSocket] = useState(null);
-  const lastActiveRef = useRef(Date.now());
 
-  // Record user activity timestamp
-  const recordActivity = useCallback(() => {
-    const now = Date.now();
-    lastActiveRef.current = now;
-    AsyncStorage.setItem('last_active_time', String(now)).catch(() => {});
-  }, []);
+  // Backward compatibility dummy: activity recording is no longer needed because sessions never expire
+  const recordActivity = useCallback(() => {}, []);
 
-  // Internal silent logout (for session expiration, 401s, etc.)
-  const performLogout = useCallback(async (alertMessage = null) => {
+  // Internal silent logout (for explicit logout or if account was disabled/removed by administrator)
+  const performLogout = useCallback(async () => {
     try {
       await api.post('/api/me/remove-push-token').catch(() => {});
     } catch {}
     setToken(null);
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('last_active_time');
+    await AsyncStorage.multiRemove(['token', 'user_profile', 'last_active_time']).catch(() => {});
     setUser(null);
-    if (alertMessage) {
-      setTimeout(() => {
-        Alert.alert('Session Expired', alertMessage);
-      }, 300);
-    }
   }, []);
 
   // User-facing logout with required confirmation dialog
@@ -62,78 +48,54 @@ export function AuthProvider({ children }) {
     [performLogout]
   );
 
-  // Restore a saved session on app start
+  // Restore saved session on app start - persistent login (never expires on app close)
   useEffect(() => {
     setUnauthorizedHandler(() => performLogout());
     (async () => {
       try {
-        const saved = await AsyncStorage.getItem('token');
-        const savedTimeStr = await AsyncStorage.getItem('last_active_time');
-        const lastActive = savedTimeStr ? Number(savedTimeStr) : null;
+        const [savedToken, savedUserJson] = await Promise.all([
+          AsyncStorage.getItem('token'),
+          AsyncStorage.getItem('user_profile'),
+        ]);
 
-        // Check if session was already expired while app was closed
-        if (saved && lastActive && Date.now() - lastActive > INACTIVITY_TIMEOUT_MS) {
-          await AsyncStorage.removeItem('token');
-          await AsyncStorage.removeItem('last_active_time');
-        } else if (saved) {
-          setToken(saved);
+        let initialUser = null;
+        if (savedUserJson) {
+          try {
+            initialUser = JSON.parse(savedUserJson);
+          } catch {}
+        }
+
+        if (savedToken) {
+          setToken(savedToken);
+          // If cached user profile exists, immediately set it so the app enters the dashboard with NO login screen
+          if (initialUser) {
+            setUser(initialUser);
+          }
+
+          // Asynchronously verify & sync latest user profile from server
           try {
             const { user: me } = await api.get('/api/me');
             setUser(me);
-            recordActivity();
+            await AsyncStorage.setItem('user_profile', JSON.stringify(me));
           } catch (e) {
-            // Only forget the token if the server said it is no longer valid.
-            if (e.status === 401 || e.status === 403) {
+            // Only clear credentials if server explicitly says the token is invalid or account disabled
+            if (e.status === 401 || (e.status === 403 && e.data?.error === 'Account is not active')) {
               setToken(null);
-              await AsyncStorage.removeItem('token');
+              await AsyncStorage.multiRemove(['token', 'user_profile', 'last_active_time']).catch(() => {});
+              setUser(null);
             }
+            // For offline, slow network, or server cold start: keep user logged in with cached profile
           }
         }
+      } catch (err) {
+        console.warn('[auth] Error restoring session:', err);
       } finally {
         setReady(true);
       }
     })();
-  }, [performLogout, recordActivity]);
+  }, [performLogout]);
 
-  // Monitor user inactivity session timeout (foreground interval + background wake check)
-  useEffect(() => {
-    if (!user) return undefined;
-
-    recordActivity();
-
-    // Check every 30 seconds while foregrounded
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const last = lastActiveRef.current;
-      if (last && now - last > INACTIVITY_TIMEOUT_MS) {
-        clearInterval(interval);
-        performLogout('Your session has expired due to 15 minutes of inactivity. Please sign in again.');
-      }
-    }, 30000);
-
-    // AppState change listener (e.g. app resumes after being in background or locked)
-    const subscription = AppState.addEventListener('change', async (nextState) => {
-      if (nextState === 'active') {
-        const now = Date.now();
-        const savedTimeStr = await AsyncStorage.getItem('last_active_time');
-        const last = savedTimeStr ? Number(savedTimeStr) : lastActiveRef.current;
-        if (last && now - last > INACTIVITY_TIMEOUT_MS) {
-          performLogout('Your session has expired due to inactivity while away. Please sign in again.');
-        } else {
-          recordActivity();
-        }
-      } else {
-        recordActivity();
-      }
-    });
-
-    return () => {
-      clearInterval(interval);
-      subscription.remove();
-    };
-  }, [user, performLogout, recordActivity]);
-
-  // One realtime connection while signed in
+  // Realtime connection while signed in
   useEffect(() => {
     if (!user) return undefined;
     const s = io(API_URL, { auth: { token: getToken() }, transports: ['websocket'] });
@@ -148,26 +110,35 @@ export function AuthProvider({ children }) {
     async (email, password) => {
       const res = await api.post('/api/auth/login', { email, password });
       setToken(res.token);
-      await AsyncStorage.setItem('token', res.token);
+      await Promise.all([
+        AsyncStorage.setItem('token', res.token),
+        AsyncStorage.setItem('user_profile', JSON.stringify(res.user)),
+      ]);
       setUser(res.user);
-      recordActivity();
       return res;
     },
-    [recordActivity]
+    []
   );
 
   const setSession = useCallback(
     async (token, me) => {
       setToken(token);
-      await AsyncStorage.setItem('token', token);
+      await Promise.all([
+        AsyncStorage.setItem('token', token),
+        AsyncStorage.setItem('user_profile', JSON.stringify(me)),
+      ]);
       setUser(me);
-      recordActivity();
     },
-    [recordActivity]
+    []
   );
 
   const updateUser = useCallback((updatedUser) => {
-    setUser((prev) => ({ ...prev, ...updatedUser }));
+    setUser((prev) => {
+      if (!prev) return prev;
+      const merged = { ...prev, ...updatedUser };
+      AsyncStorage.setItem('user_profile', JSON.stringify(merged)).catch(() => {});
+      return merged;
+    });
   }, []);
 
   return (

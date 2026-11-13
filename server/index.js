@@ -225,8 +225,8 @@ app.post('/api/auth/verify-otp', wrap(async (req, res) => {
     });
   }
 
-  // Auto-approved student: issue JWT token immediately
-  const token = jwt.sign({ id: u.id }, JWT_SECRET, { expiresIn: '30d' });
+  // Auto-approved student: issue JWT token immediately (permanent 10-year session)
+  const token = jwt.sign({ id: u.id }, JWT_SECRET, { expiresIn: '3650d' });
   res.json({
     status: 'approved',
     token,
@@ -299,7 +299,8 @@ app.post('/api/auth/login', wrap(async (req, res) => {
   if (u.status === 'pending') return res.status(403).json({ error: 'Your account is waiting for admin approval' });
   if (u.status === 'rejected') return res.status(403).json({ error: 'Your registration was rejected. Contact the school admin.' });
   if (u.status === 'disabled') return res.status(403).json({ error: 'Your account has been disabled. Contact the school admin.' });
-  const token = jwt.sign({ id: u.id }, JWT_SECRET, { expiresIn: '30d' });
+  // Permanent 10-year session (does not expire when user closes app)
+  const token = jwt.sign({ id: u.id }, JWT_SECRET, { expiresIn: '3650d' });
   res.json({ token, user: publicUser(u) });
 }));
 
