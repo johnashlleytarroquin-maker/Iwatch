@@ -564,22 +564,25 @@ export default function AuthScreen() {
                         style={s.idYearInput}
                         value={idYear}
                         onChangeText={(val) => {
-                          const clean = val.replace(/[^0-9]/g, '').slice(0, 4);
-                          setIdYear(clean);
-                          if (clean.length === 4) {
+                          const clean = val.replace(/[^0-9A-Za-z]/g, '');
+                          if (clean.length > 4) {
+                            setIdYear(clean.slice(0, 4));
+                            setIdNumberPart(clean.slice(4, 11));
                             idRestRef.current?.focus();
+                          } else {
+                            setIdYear(clean);
+                            if (clean.length === 4) {
+                              idRestRef.current?.focus();
+                            }
                           }
                         }}
                         placeholder=""
-                        placeholderTextColor={C.muted}
                         keyboardType="number-pad"
                         maxLength={4}
                         returnKeyType="next"
                         onFocus={() => scrollToInput(230)}
                       />
-                      <View style={s.idDashContainer}>
-                        <Text style={s.idDashText}>-</Text>
-                      </View>
+                      <Text style={s.idDashText}>-</Text>
                       <TextInput
                         ref={idRestRef}
                         style={s.idRestInput}
@@ -594,7 +597,6 @@ export default function AuthScreen() {
                           }
                         }}
                         placeholder=""
-                        placeholderTextColor={C.muted}
                         keyboardType="number-pad"
                         maxLength={7}
                         returnKeyType="next"
@@ -874,40 +876,38 @@ const s = StyleSheet.create({
   idCompoundContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: C.bg,
+    backgroundColor: '#fff',
     borderWidth: 1.5,
     borderColor: C.border,
     borderRadius: 12,
-    overflow: 'hidden',
+    height: 50,
+    paddingHorizontal: 10,
   },
   idYearInput: {
-    width: 86,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    fontSize: 15,
+    width: 65,
+    height: 46,
+    fontSize: 16,
     fontWeight: '700',
     color: C.text,
     textAlign: 'center',
-  },
-  idDashContainer: {
-    width: 32,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E5E7EB',
+    paddingVertical: 0,
+    paddingHorizontal: 4,
   },
   idDashText: {
     fontSize: 18,
-    fontWeight: '900',
-    color: C.forest,
+    fontWeight: '800',
+    color: C.sub,
+    paddingHorizontal: 6,
+    lineHeight: 22,
   },
   idRestInput: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    fontSize: 15,
+    height: 46,
+    fontSize: 16,
     fontWeight: '700',
     color: C.text,
+    paddingVertical: 0,
+    paddingHorizontal: 8,
   },
 
   // OTP Styles
