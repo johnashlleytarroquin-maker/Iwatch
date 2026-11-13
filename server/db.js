@@ -44,6 +44,55 @@ async function findUserByEmail(email) {
   return data;
 }
 
+async function findUserByIdentifier(identifier) {
+  const idStr = String(identifier || '').trim().toLowerCase();
+  if (!idStr) return null;
+
+  // 1. Direct email lookup
+  let user = await findUserByEmail(idStr);
+  if (user) return user;
+
+  // 2. Lookup in audit_log for registered username
+  try {
+    const { data: logs, error } = await supabase
+      .from('audit_log')
+      .select('target_id, details')
+      .eq('target_type', 'username')
+      .order('id', { ascending: false });
+
+    if (!error && logs && logs.length > 0) {
+      for (const log of logs) {
+        try {
+          const parsed = JSON.parse(log.details || '{}');
+          if (parsed.username && String(parsed.username).trim().toLowerCase() === idStr) {
+            const found = await findUserById(log.target_id);
+            if (found) return found;
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.error('[db] Error checking username in audit_log:', e.message);
+  }
+
+  // 3. Fallback: match email prefix (e.g., 'cyril' matches 'cyril@gmail.com')
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('*')
+      .ilike('email', `${idStr}@%`)
+      .limit(1);
+
+    if (!error && users && users.length > 0) {
+      return users[0];
+    }
+  } catch (e) {
+    console.error('[db] Error checking email prefix match:', e.message);
+  }
+
+  return null;
+}
+
 async function createUser({ name, email, password_hash, role, status, id_number, phone }) {
   const { data, error } = await supabase
     .from('users')
@@ -283,6 +332,7 @@ module.exports = {
   JWT_SECRET,
   findUserById,
   findUserByEmail,
+  findUserByIdentifier,
   createUser,
   updateUser,
   getUsers,

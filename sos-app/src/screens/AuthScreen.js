@@ -22,11 +22,21 @@ export default function AuthScreen() {
   const { login, setSession } = useAuth();
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [role, setRole] = useState('student');
+
+  // Sign In inputs
+  const [loginUsername, setLoginUsername] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+
+  // Create Account inputs
   const [name, setName] = useState('');
-  const [idNumber, setIdNumber] = useState('');
+  const [suffix, setSuffix] = useState('');
+  const [username, setUsername] = useState('');
+  const [idYear, setIdYear] = useState('');
+  const [idNumberPart, setIdNumberPart] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
 
@@ -45,10 +55,15 @@ export default function AuthScreen() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
-  // Refs for smooth keyboard navigation & auto-scrolling
+  // Input refs for keyboard navigation & auto-scrolling
   const scrollViewRef = useRef(null);
+  const loginUsernameRef = useRef(null);
+  const loginPasswordRef = useRef(null);
   const nameInputRef = useRef(null);
-  const idNumberInputRef = useRef(null);
+  const suffixInputRef = useRef(null);
+  const usernameInputRef = useRef(null);
+  const idYearRef = useRef(null);
+  const idRestRef = useRef(null);
   const phoneInputRef = useRef(null);
   const emailInputRef = useRef(null);
   const passwordInputRef = useRef(null);
@@ -92,29 +107,71 @@ export default function AuthScreen() {
   };
 
   const submit = async () => {
-    const cleanEmail = email.trim().toLowerCase();
-
-    // Require Gmail address when creating a new account
-    if (mode === 'register' && (!cleanEmail.endsWith('@gmail.com') || cleanEmail.length <= 10)) {
-      Alert.alert(
-        'Valid Gmail Required',
-        'All new accounts must use an active, valid Gmail address (@gmail.com) for account verification and security notifications.'
-      );
-      return;
-    }
-
     setBusy(true);
     setNotice('');
+
     try {
       if (mode === 'login') {
-        await login(cleanEmail, password);
+        const cleanLogin = loginUsername.trim();
+        if (!cleanLogin) {
+          Alert.alert('Required', 'Please enter your username.');
+          setBusy(false);
+          return;
+        }
+        if (!loginPassword) {
+          Alert.alert('Required', 'Please enter your password.');
+          setBusy(false);
+          return;
+        }
+        await login(cleanLogin, loginPassword);
       } else {
+        const cleanEmail = email.trim().toLowerCase();
+
+        // Require valid Gmail address
+        if (!cleanEmail.endsWith('@gmail.com') || cleanEmail.length <= 10) {
+          Alert.alert(
+            'Valid Gmail Required',
+            'All new accounts must use an active, valid Gmail address (@gmail.com) for verification and security notices.'
+          );
+          setBusy(false);
+          return;
+        }
+
+        // Validate password length (at least 8 characters)
+        if (password.length < 8) {
+          Alert.alert('Password Too Short', 'Password must be at least 8 characters long.');
+          setBusy(false);
+          return;
+        }
+
+        // Validate username
+        const cleanUsername = username.trim().toLowerCase();
+        if (cleanUsername.length < 3) {
+          Alert.alert('Invalid Username', 'Username must be at least 3 characters long.');
+          setBusy(false);
+          return;
+        }
+
+        // Validate ID Number
+        if (idYear.trim().length !== 4 || idNumberPart.trim().length < 3) {
+          Alert.alert(
+            'Incomplete ID Number',
+            'Please enter a valid 4-digit year and ID number (e.g. 2024 - 12345).'
+          );
+          setBusy(false);
+          return;
+        }
+
+        const fullIdNumber = `${idYear.trim()} - ${idNumberPart.trim()}`;
+
         const res = await api.post('/api/auth/register', {
           name: name.trim(),
+          suffix: suffix.trim(),
+          username: cleanUsername,
           email: cleanEmail,
           password,
           role,
-          idNumber: idNumber.trim(),
+          idNumber: fullIdNumber,
           phone: phone.trim(),
         });
 
@@ -132,14 +189,15 @@ export default function AuthScreen() {
           }
         } else {
           setNotice(res.message || 'Registration submitted! Please sign in.');
+          setLoginUsername(cleanUsername);
+          setLoginPassword('');
           setMode('login');
-          setPassword('');
         }
       }
     } catch (e) {
       // Check if server rejected login because Gmail is not verified yet
       if (e.data && e.data.unverified) {
-        setVerifyingEmail(cleanEmail);
+        setVerifyingEmail(e.data.email || loginUsername.trim());
         setOtpMode(true);
         setResendCooldown(60);
         if (e.data.devOtp) {
@@ -181,18 +239,19 @@ export default function AuthScreen() {
 
       if (res.token && res.user) {
         // Auto sign-in for approved accounts
-        Alert.alert('Verification Successful', 'Your Gmail has been verified! Welcome to Iwatch.');
+        Alert.alert('Verification Successful', 'Your account has been verified! Welcome to Iwatch.');
         await setSession(res.token, res.user);
       } else {
         // Responder accounts pending admin approval
         Alert.alert(
-          'Gmail Verified',
-          res.message || 'Your Gmail is verified! An administrator must review and approve your responder account before you can sign in.'
+          'Email Verified',
+          res.message || 'Your email is verified! An administrator must review and approve your responder account before you can sign in.'
         );
         setOtpMode(false);
+        setLoginUsername(username.trim() || verifyingEmail);
+        setLoginPassword('');
         setMode('login');
-        setPassword('');
-        setNotice('Gmail verified! Awaiting administrator approval.');
+        setNotice('Email verified! Awaiting administrator approval.');
       }
     } catch (err) {
       Alert.alert('Verification Failed', err.message || 'Incorrect code. Please try again.');
@@ -223,7 +282,17 @@ export default function AuthScreen() {
   };
 
   const ready =
-    email.trim() && password && (mode === 'login' || (name.trim() && password.length >= 6));
+    mode === 'login'
+      ? Boolean(loginUsername.trim() && loginPassword)
+      : Boolean(
+          name.trim() &&
+            username.trim().length >= 3 &&
+            idYear.trim().length === 4 &&
+            idNumberPart.trim().length >= 3 &&
+            phone.trim().length >= 10 &&
+            email.trim().length > 5 &&
+            password.length >= 8
+        );
 
   const dynamicPaddingBottom = keyboardVisible ? Math.max(keyboardHeight + 80, 360) : 48;
 
@@ -279,12 +348,12 @@ export default function AuthScreen() {
               <View style={s.otpIconContainer}>
                 <Ionicons name="mail-unread-outline" size={32} color={C.forest} />
               </View>
-              <Text style={s.otpTitle}>Verify Your Gmail</Text>
+              <Text style={s.otpTitle}>Verify Your Email</Text>
               <Text style={s.otpDesc}>
                 We sent a 6-digit verification code to:
               </Text>
               <View style={s.emailBadge}>
-                <Ionicons name="logo-google" size={14} color="#EA4335" style={{ marginRight: 6 }} />
+                <Ionicons name="mail" size={14} color={C.forest} style={{ marginRight: 6 }} />
                 <Text style={s.emailBadgeText}>{verifyingEmail}</Text>
               </View>
             </View>
@@ -368,9 +437,41 @@ export default function AuthScreen() {
 
             {/* Form Card */}
             <View style={s.card}>
-              {mode === 'register' && (
+              {mode === 'login' ? (
+                /* ---------- Sign In Form ---------- */
                 <>
-                  {/* Role Picker */}
+                  <Field
+                    ref={loginUsernameRef}
+                    label="Username"
+                    value={loginUsername}
+                    onChangeText={setLoginUsername}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="Enter your username"
+                    returnKeyType="next"
+                    onFocus={() => scrollToInput(40)}
+                    onSubmitEditing={() => loginPasswordRef.current?.focus()}
+                  />
+
+                  <Field
+                    ref={loginPasswordRef}
+                    label="Password"
+                    value={loginPassword}
+                    onChangeText={setLoginPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    placeholder="Enter your password"
+                    returnKeyType={ready ? 'done' : 'default'}
+                    onFocus={() => scrollToInput(110)}
+                    onSubmitEditing={() => {
+                      if (ready) submit();
+                    }}
+                  />
+                </>
+              ) : (
+                /* ---------- Create Account Form ---------- */
+                <>
+                  {/* Account Type Selector */}
                   <Text style={s.sectionLabel}>ACCOUNT TYPE</Text>
                   <View style={s.roleGrid}>
                     <TouchableOpacity
@@ -408,76 +509,147 @@ export default function AuthScreen() {
                     <View style={s.approvalNotice}>
                       <Ionicons name="information-circle" size={18} color={C.amber} style={{ marginRight: 6 }} />
                       <Text style={s.approvalText}>
-                        Responder registrations must be verified by Gmail and approved by Campus Admin before sign-in.
+                        Responder registrations must be verified by email and approved by Campus Admin before sign-in.
                       </Text>
                     </View>
                   )}
 
+                  {/* 1. Full Name (No placeholder) */}
                   <Field
                     ref={nameInputRef}
                     label="Full Name"
                     value={name}
                     onChangeText={setName}
-                    placeholder="e.g. Juan B Dela Cruz"
+                    placeholder=""
                     returnKeyType="next"
                     onFocus={() => scrollToInput(50)}
-                    onSubmitEditing={() => idNumberInputRef.current?.focus()}
+                    onSubmitEditing={() => suffixInputRef.current?.focus()}
                   />
 
+                  {/* 2. Suffix (optional) */}
                   <Field
-                    ref={idNumberInputRef}
-                    label={role === 'student' ? 'Student ID Number' : 'Responder ID'}
-                    value={idNumber}
-                    onChangeText={setIdNumber}
-                    placeholder="e.g. 2024-10892"
-                    autoCapitalize="characters"
+                    ref={suffixInputRef}
+                    label="Suffix (optional)"
+                    value={suffix}
+                    onChangeText={setSuffix}
+                    placeholder=""
+                    maxLength={15}
                     returnKeyType="next"
-                    onFocus={() => scrollToInput(130)}
-                    onSubmitEditing={() => phoneInputRef.current?.focus()}
+                    onFocus={() => scrollToInput(110)}
+                    onSubmitEditing={() => usernameInputRef.current?.focus()}
                   />
 
+                  {/* 3. Username */}
+                  <Field
+                    ref={usernameInputRef}
+                    label="Username"
+                    value={username}
+                    onChangeText={(t) => setUsername(t.replace(/[^a-zA-Z0-9_.-]/g, ''))}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="Choose a username"
+                    returnKeyType="next"
+                    onFocus={() => scrollToInput(170)}
+                    onSubmitEditing={() => idYearRef.current?.focus()}
+                  />
+
+                  {/* 4. Student ID Number (No placeholder, unchangeable dash separation) */}
+                  <View style={s.fieldWrapper}>
+                    <Text style={s.fieldLabel}>
+                      {role === 'student' ? 'Student ID Number' : 'Responder ID Number'}
+                    </Text>
+                    <View style={s.idCompoundContainer}>
+                      <TextInput
+                        ref={idYearRef}
+                        style={s.idYearInput}
+                        value={idYear}
+                        onChangeText={(val) => {
+                          const clean = val.replace(/[^0-9]/g, '').slice(0, 4);
+                          setIdYear(clean);
+                          if (clean.length === 4) {
+                            idRestRef.current?.focus();
+                          }
+                        }}
+                        placeholder=""
+                        placeholderTextColor={C.muted}
+                        keyboardType="number-pad"
+                        maxLength={4}
+                        returnKeyType="next"
+                        onFocus={() => scrollToInput(230)}
+                      />
+                      <View style={s.idDashContainer}>
+                        <Text style={s.idDashText}>-</Text>
+                      </View>
+                      <TextInput
+                        ref={idRestRef}
+                        style={s.idRestInput}
+                        value={idNumberPart}
+                        onChangeText={(val) => {
+                          const clean = val.replace(/[^0-9A-Za-z]/g, '').slice(0, 7);
+                          setIdNumberPart(clean);
+                        }}
+                        onKeyPress={({ nativeEvent }) => {
+                          if (nativeEvent.key === 'Backspace' && idNumberPart === '') {
+                            idYearRef.current?.focus();
+                          }
+                        }}
+                        placeholder=""
+                        placeholderTextColor={C.muted}
+                        keyboardType="number-pad"
+                        maxLength={7}
+                        returnKeyType="next"
+                        onFocus={() => scrollToInput(230)}
+                        onSubmitEditing={() => phoneInputRef.current?.focus()}
+                      />
+                    </View>
+                  </View>
+
+                  {/* 5. Phone Number */}
                   <Field
                     ref={phoneInputRef}
-                    label="Contact Phone (for emergency purposes)"
+                    label="Phone Number"
                     value={phone}
-                    onChangeText={setPhone}
-                    placeholder="e.g. 09173698673"
+                    onChangeText={(t) => setPhone(t.replace(/[^0-9]/g, '').slice(0, 11))}
+                    placeholder="09XXXXXXXXX"
                     keyboardType="phone-pad"
+                    maxLength={11}
                     returnKeyType="next"
-                    onFocus={() => scrollToInput(210)}
+                    onFocus={() => scrollToInput(290)}
                     onSubmitEditing={() => emailInputRef.current?.focus()}
+                  />
+
+                  {/* 6. Email Address */}
+                  <Field
+                    ref={emailInputRef}
+                    label="Email Address"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoCorrect={false}
+                    placeholder="yourname@gmail.com"
+                    returnKeyType="next"
+                    onFocus={() => scrollToInput(360)}
+                    onSubmitEditing={() => passwordInputRef.current?.focus()}
+                  />
+
+                  {/* 7. Password (At least 8 characters) */}
+                  <Field
+                    ref={passwordInputRef}
+                    label="Password (At least 8 characters)"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    placeholder="At least 8 characters"
+                    returnKeyType={ready ? 'done' : 'default'}
+                    onFocus={scrollToBottom}
+                    onSubmitEditing={() => {
+                      if (ready) submit();
+                    }}
                   />
                 </>
               )}
-
-              <Field
-                ref={emailInputRef}
-                label={mode === 'register' ? 'Personal Gmail Account' : 'Email / Gmail Address'}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-                placeholder={mode === 'register' ? 'yourname@gmail.com' : 'Juandelacruz@gmail.com'}
-                returnKeyType="next"
-                onFocus={() => scrollToInput(mode === 'register' ? 290 : 50)}
-                onSubmitEditing={() => passwordInputRef.current?.focus()}
-              />
-
-              <Field
-                ref={passwordInputRef}
-                label={mode === 'register' ? 'Password (min. 6 characters)' : 'Password'}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                placeholder="••••••••"
-                returnKeyType={ready ? 'done' : 'default'}
-                onFocus={scrollToBottom}
-                onSubmitEditing={() => {
-                  if (ready) submit();
-                }}
-              />
 
               <Btn
                 title={mode === 'login' ? 'SIGN IN' : 'SEND VERIFICATION CODE'}
@@ -520,16 +692,21 @@ const s = StyleSheet.create({
   heroCompact: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    marginTop: 4,
+    marginBottom: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.borderLight,
+    ...SHADOWS.sm,
   },
   shieldBadgeCompact: {
-    width: 32,
-    height: 32,
+    width: 34,
+    height: 34,
     borderRadius: 10,
     backgroundColor: C.forest,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: C.gold,
     alignItems: 'center',
     justifyContent: 'center',
@@ -680,6 +857,57 @@ const s = StyleSheet.create({
     color: C.amberDark,
     lineHeight: 16,
     fontWeight: '500',
+  },
+
+  // Compound ID Input Styles
+  fieldWrapper: {
+    marginBottom: 14,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: C.sub,
+    letterSpacing: 0.6,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  idCompoundContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.bg,
+    borderWidth: 1.5,
+    borderColor: C.border,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  idYearInput: {
+    width: 86,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.text,
+    textAlign: 'center',
+  },
+  idDashContainer: {
+    width: 32,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E5E7EB',
+  },
+  idDashText: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: C.forest,
+  },
+  idRestInput: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: '700',
+    color: C.text,
   },
 
   // OTP Styles

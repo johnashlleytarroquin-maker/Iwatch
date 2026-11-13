@@ -107,8 +107,13 @@ export function AuthProvider({ children }) {
   }, [user?.id]);
 
   const login = useCallback(
-    async (email, password) => {
-      const res = await api.post('/api/auth/login', { email, password });
+    async (identifier, password) => {
+      const res = await api.post('/api/auth/login', {
+        identifier,
+        username: identifier,
+        email: identifier,
+        password,
+      });
       setToken(res.token);
       await Promise.all([
         AsyncStorage.setItem('token', res.token),

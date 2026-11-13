@@ -10,6 +10,7 @@ const {
   JWT_SECRET,
   findUserById,
   findUserByEmail,
+  findUserByIdentifier,
   createUser,
   updateUser,
   getUsers,
@@ -95,10 +96,25 @@ async function isEmailVerified(u) {
 app.get('/api/health', (_req, res) => res.json({ ok: true, database: 'supabase' }));
 
 app.post('/api/auth/register', wrap(async (req, res) => {
-  const { name, email, password, role: wanted, idNumber, phone } = req.body || {};
+  const { name, suffix, username, email, password, role: wanted, idNumber, phone } = req.body || {};
   if (!name || !email || !password) return res.status(400).json({ error: 'Name, email and password are required' });
   if (!['student', 'responder'].includes(wanted)) return res.status(400).json({ error: 'Role must be student or responder' });
-  if (String(password).length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  // Clean username
+  const cleanUsername = String(username || '').trim().toLowerCase();
+  if (!cleanUsername || cleanUsername.length < 3) {
+    return res.status(400).json({ error: 'Username must be at least 3 characters' });
+  }
+  if (!/^[a-z0-9_.-]+$/.test(cleanUsername)) {
+    return res.status(400).json({ error: 'Username can only contain letters, numbers, underscores, and periods' });
+  }
+
+  // Check if username is already taken
+  const existingUsernameUser = await findUserByIdentifier(cleanUsername);
+  if (existingUsernameUser) {
+    return res.status(409).json({ error: 'That username is already taken. Please choose another.' });
+  }
 
   // Require valid Gmail address
   const em = String(email).trim().toLowerCase();
@@ -133,9 +149,14 @@ app.post('/api/auth/register', wrap(async (req, res) => {
     return res.status(409).json({ error: 'That Gmail address is already registered.' });
   }
 
+  // Format full name with optional suffix (e.g. Juan Dela Cruz Jr.)
+  const cleanSuffix = String(suffix || '').trim();
+  const cleanName = String(name).trim();
+  const finalFullName = cleanSuffix ? `${cleanName} ${cleanSuffix}` : cleanName;
+
   // Create user with status 'pending' (satisfies DB constraint until OTP verified)
   const newUser = await createUser({
-    name: String(name).trim(),
+    name: finalFullName,
     email: em,
     password_hash: bcrypt.hashSync(String(password), 10),
     role: wanted,
@@ -144,7 +165,20 @@ app.post('/api/auth/register', wrap(async (req, res) => {
     phone: phone || null,
   });
 
-  await audit(newUser.id, 'register', 'user', newUser.id, `${wanted} registered (pending verification)`);
+  // Store username & suffix metadata
+  await supabase.from('audit_log').insert({
+    actor_id: newUser.id,
+    action: 'user_profile_meta',
+    target_type: 'username',
+    target_id: newUser.id,
+    details: JSON.stringify({
+      username: cleanUsername,
+      suffix: cleanSuffix || null,
+      rawName: cleanName,
+    }),
+  });
+
+  await audit(newUser.id, 'register', 'user', newUser.id, `${wanted} registered (${cleanUsername}, pending verification)`);
 
   // Generate 6-digit verification code (valid for 10 minutes)
   const otp = String(Math.floor(100000 + Math.random() * 900000));
@@ -268,10 +302,16 @@ app.post('/api/auth/resend-otp', wrap(async (req, res) => {
 }));
 
 app.post('/api/auth/login', wrap(async (req, res) => {
-  const { email, password } = req.body || {};
-  const u = await findUserByEmail(email);
-  if (!u || !bcrypt.compareSync(String(password || ''), u.password_hash))
-    return res.status(401).json({ error: 'Wrong email or password' });
+  const { username, email, identifier, password } = req.body || {};
+  const loginId = String(identifier || username || email || '').trim();
+  if (!loginId || !password) {
+    return res.status(400).json({ error: 'Username and password are required' });
+  }
+
+  const u = await findUserByIdentifier(loginId);
+  if (!u || !bcrypt.compareSync(String(password || ''), u.password_hash)) {
+    return res.status(401).json({ error: 'Wrong username or password' });
+  }
 
   const verified = await isEmailVerified(u);
   if (!verified) {
