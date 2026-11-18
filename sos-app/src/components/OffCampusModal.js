@@ -47,17 +47,6 @@ export default function OffCampusModal({
             </Text>
           </View>
 
-          {/* Explanation Text */}
-          <View style={s.infoBox}>
-            <Text style={s.infoText}>
-              Iwatch emergency dispatch is configured for <Text style={s.bold}>on-campus response ({CAMPUS_CONFIG.radiusMeters}m boundary)</Text>.
-              Campus safety officers cannot physically deploy off-campus.
-            </Text>
-            <Text style={[s.infoText, { marginTop: 8 }]}>
-              For off-campus emergencies, please contact the <Text style={s.bold}>National Emergency Hotline (911)</Text> immediately.
-            </Text>
-          </View>
-
           {/* Action Buttons */}
           <Btn
             title=" CALL 911 EMERGENCY NOW"
