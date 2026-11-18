@@ -60,7 +60,7 @@ export default function OffCampusModal({
 
           {/* Action Buttons */}
           <Btn
-            title="📞 CALL 911 EMERGENCY NOW"
+            title=" CALL 911 EMERGENCY NOW"
             onPress={call911}
             color="#DC2626"
             style={{ width: '100%', paddingVertical: 16, marginBottom: 10, ...SHADOWS.md }}
