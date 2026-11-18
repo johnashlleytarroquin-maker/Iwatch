@@ -319,7 +319,7 @@ export default function AuthScreen() {
               <MaterialCommunityIcons name="hospital-box" size={40} color={C.gold} />
             </View>
             <Text style={s.brandTitle}>Iwatch</Text>
-            <Text style={s.brandSubtitle}>Campus Emergency Response Network</Text>
+            <Text style={s.brandSubtitle}>Campus Emergency Response App</Text>
           </View>
         ) : (
           <View style={s.heroCompact}>
@@ -672,14 +672,6 @@ export default function AuthScreen() {
           </>
         )}
 
-        {/* Footer info */}
-        <View style={s.footer}>
-          <View style={s.encryptedPill}>
-            <Ionicons name="shield-checkmark" size={14} color={C.gold} />
-            <Text style={s.encryptedText}>Authorized Campus Security Protocol</Text>
-          </View>
-          <Text style={s.serverInfo}>Connected to {API_URL}</Text>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
