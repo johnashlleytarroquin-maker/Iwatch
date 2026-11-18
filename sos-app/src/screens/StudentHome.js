@@ -1116,7 +1116,7 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
   const gpsBadge = {
     loading: { text: 'Acquiring GPS location...', color: C.amber, icon: 'navigate-circle-outline' },
     ok: {
-      text: `GPS coordinates locked ${coords?.acc ? `(±${Math.round(coords.acc)}m)` : ''}`,
+      text: `GPS coordinates locked ${coords?.acc ? `(${Math.round(coords.acc)}m)` : ''}`,
       color: C.green,
       icon: 'checkmark-circle',
     },
