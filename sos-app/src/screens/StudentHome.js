@@ -1229,7 +1229,7 @@ function ComposeModal({ visible, initialType, initialNote, onClose, onSent }) {
               >
                 {geofence.isInsideCampus
                   ? `SNSU Main Campus Boundary Verified (Within ${CAMPUS_CONFIG.radiusMeters}m)`
-                  : `Outside Campus Boundary (~${geofence.distanceFormatted} away • 911 Ready)`}
+                  : `You are outside the campus (~${geofence.distanceFormatted} away • 911 Ready)`}
               </Text>
             </View>
           ) : null}
