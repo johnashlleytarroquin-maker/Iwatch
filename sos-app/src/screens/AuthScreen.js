@@ -504,16 +504,7 @@ export default function AuthScreen() {
                       <Text style={s.roleDesc}>Safety Personnel</Text>
                     </TouchableOpacity>
                   </View>
-
-                  {role === 'responder' && (
-                    <View style={s.approvalNotice}>
-                      <Ionicons name="information-circle" size={18} color={C.amber} style={{ marginRight: 6 }} />
-                      <Text style={s.approvalText}>
-                        Responder registrations must be verified by email and approved by Campus Admin before sign-in.
-                      </Text>
-                    </View>
-                  )}
-
+                  
                   {/* 1. Full Name (No placeholder) */}
                   <Field
                     ref={nameInputRef}
